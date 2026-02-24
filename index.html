@@ -903,34 +903,31 @@
             // ADMIN STATE
             const [isAdmin, setIsAdmin] = React.useState(false);
             const [showPinModal, setShowPinModal] = React.useState(false);
-            const [pinInput, setPinInput] = React.useState('');
-            const [pinError, setPinError] = React.useState('');
             const COACH_PIN = "050321";
 
             // FIREBASE INIT & AUTH
             React.useEffect(() => {
                 const initFirebase = async () => {
                     try {
-                        let firebaseApp;
                         if (!firebase.apps.length) {
                            const config = {
-  apiKey: "AIzaSyBtT461dmlo_8dilfxvsAo1GDv15OiOz3c",
-  authDomain: "fhs-girls-tennis.firebaseapp.com",
-  projectId: "fhs-girls-tennis",
-  storageBucket: "fhs-girls-tennis.firebasestorage.app",
-  messagingSenderId: "635997033090",
-  appId: "1:635997033090:web:dbd85cd32e681f3e1d9a9b"
-};
-const currentAppId = 'fhs-girls-tennis';
+                                apiKey: "AIzaSyBtT461dmlo_8dilfxvsAo1GDv15OiOz3c",
+                                authDomain: "fhs-girls-tennis.firebaseapp.com",
+                                projectId: "fhs-girls-tennis",
+                                storageBucket: "fhs-girls-tennis.firebasestorage.app",
+                                messagingSenderId: "635997033090",
+                                appId: "1:635997033090:web:dbd85cd32e681f3e1d9a9b"
+                            };
+                            firebase.initializeApp(config);
+                        }
+                        
+                        const currentAppId = 'fhs-girls-tennis';
                         setAppId(currentAppId);
                         setDb(firebase.firestore());
 
-                        // Auth FIRST
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            await firebase.auth().signInWithCustomToken(__initial_auth_token);
-                        } else {
-                            await firebase.auth().signInAnonymously();
-                        }
+                        // AUTH FIX: Strictly use Anonymous Auth for your real project
+                        await firebase.auth().signInAnonymously();
+                        
                     } catch (e) {
                         console.error("Firebase Initialization Error:", e);
                         setLoading(false);
