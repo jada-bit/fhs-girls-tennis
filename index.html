@@ -913,15 +913,15 @@
                     try {
                         let firebaseApp;
                         if (!firebase.apps.length) {
-                            const config = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { 
-                                apiKey: "mock-key", projectId: "mock-project" 
-                            };
-                            firebaseApp = firebase.initializeApp(config);
-                        } else {
-                            firebaseApp = firebase.app();
-                        }
-                        
-                        const currentAppId = typeof __app_id !== 'undefined' ? __app_id : 'freedom-tennis-default';
+                           const config = {
+  apiKey: "AIzaSyBtT461dmlo_8dilfxvsAo1GDv15OiOz3c",
+  authDomain: "fhs-girls-tennis.firebaseapp.com",
+  projectId: "fhs-girls-tennis",
+  storageBucket: "fhs-girls-tennis.firebasestorage.app",
+  messagingSenderId: "635997033090",
+  appId: "1:635997033090:web:dbd85cd32e681f3e1d9a9b"
+};
+const currentAppId = 'fhs-girls-tennis';
                         setAppId(currentAppId);
                         setDb(firebase.firestore());
 
