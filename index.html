@@ -208,7 +208,7 @@
                     .onSnapshot((snap) => {
                         const m = [];
                         snap.forEach(doc => m.push({ id: doc.id, ...doc.data() }));
-                        m.sort((a, b) => new Date(a.date) - new Date(b.date));
+                        m.sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
                         setMatches(m);
                         setLoading(false);
                     }, (err) => {
@@ -563,6 +563,7 @@
                     <div className="glass-card p-4 flex flex-col justify-between">
                         <div className="flex justify-between items-start mb-4">
                             <div>
+                                {/* PRIVACY FILTER APPLIED HERE */}
                                 <h4 className="font-black text-lg text-gray-800 leading-tight">{formatPrivacyName(player.name)}</h4>
                                 <span className="text-xs font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded-md mt-2 inline-block">Grade {player.grade}</span>
                             </div>
@@ -619,29 +620,41 @@
                     <p className="text-sm text-gray-600 mb-6">Important forms and information for the current season.</p>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="glass-card p-6 border-l-4 border-red-500 hover:shadow-md transition cursor-pointer">
+                        <a href="PASTE_PHYSICAL_FORM_LINK_HERE" target="_blank" rel="noopener noreferrer" className="glass-card p-6 border-l-4 border-red-500 hover:shadow-md transition cursor-pointer block">
                             <h3 className="font-black text-lg mb-2">Athletic Physical Forms</h3>
                             <p className="text-xs text-gray-500 mb-4">Required by the state association before the first practice. Must be dated after May 1st.</p>
                             <span className="text-sm font-bold text-red-600">Download PDF ➔</span>
-                        </div>
+                        </a>
                         
-                        <div className="glass-card p-6 border-l-4 border-blue-500 hover:shadow-md transition cursor-pointer">
+                        <a href="PASTE_HANDBOOK_LINK_HERE" target="_blank" rel="noopener noreferrer" className="glass-card p-6 border-l-4 border-blue-500 hover:shadow-md transition cursor-pointer block">
                             <h3 className="font-black text-lg mb-2">Team Handbook</h3>
                             <p className="text-xs text-gray-500 mb-4">Contains coach philosophy, attendance expectations, and varsity lettering criteria.</p>
                             <span className="text-sm font-bold text-blue-600">View Rules ➔</span>
-                        </div>
+                        </a>
 
-                        <div className="glass-card p-6 border-l-4 border-[#FFB81C] hover:shadow-md transition cursor-pointer">
+                        <a href="PASTE_CHALLENGE_RULES_LINK_HERE" target="_blank" rel="noopener noreferrer" className="glass-card p-6 border-l-4 border-black hover:shadow-md transition cursor-pointer block">
+                            <h3 className="font-black text-lg mb-2">Challenge Match Rules</h3>
+                            <p className="text-xs text-gray-500 mb-4">Official guidelines on how ladder positions are determined, challenge formats, and lineup changes.</p>
+                            <span className="text-sm font-bold text-gray-800">View Ladder Rules ➔</span>
+                        </a>
+
+                        <a href="PASTE_COMMUNICATION_POLICY_LINK_HERE" target="_blank" rel="noopener noreferrer" className="glass-card p-6 border-l-4 border-purple-500 hover:shadow-md transition cursor-pointer block">
+                            <h3 className="font-black text-lg mb-2">Communication Policy</h3>
+                            <p className="text-xs text-gray-500 mb-4">Coach contact information, Remind/Band app codes, and our "24-Hour Rule" for match disputes.</p>
+                            <span className="text-sm font-bold text-purple-600">View Policy ➔</span>
+                        </a>
+
+                        <a href="PASTE_SNACK_SIGNUP_LINK_HERE" target="_blank" rel="noopener noreferrer" className="glass-card p-6 border-l-4 border-[#FFB81C] hover:shadow-md transition cursor-pointer block">
                             <h3 className="font-black text-lg mb-2">Match Snack Schedule</h3>
                             <p className="text-xs text-gray-500 mb-4">View which parents are assigned to bring water and snacks for home and away matches.</p>
                             <span className="text-sm font-bold text-yellow-600">View Sign-up ➔</span>
-                        </div>
+                        </a>
 
-                        <div className="glass-card p-6 border-l-4 border-green-500 hover:shadow-md transition cursor-pointer">
+                        <a href="PASTE_TRANSPORTATION_LINK_HERE" target="_blank" rel="noopener noreferrer" className="glass-card p-6 border-l-4 border-green-500 hover:shadow-md transition cursor-pointer block">
                             <h3 className="font-black text-lg mb-2">Transportation Policy</h3>
                             <p className="text-xs text-gray-500 mb-4">School district guidelines for bus travel and student release forms for away matches.</p>
                             <span className="text-sm font-bold text-green-600">Read Policy ➔</span>
-                        </div>
+                        </a>
                     </div>
                 </div>
             );
@@ -662,10 +675,17 @@
                     e.preventDefault();
                     if(!db) return;
                     try {
-                        await db.collection(`artifacts/${appId}/public/data/matches`).add({...matchForm, result: '', lines: []});
+                        await db.collection(`artifacts/${appId}/public/data/matches`).add({
+                            ...matchForm, 
+                            result: '', 
+                            lines: []
+                        });
                         setMatchForm({ date: '', opponent: '', location: 'Home', time: '4:00 PM', busTime: '', status: 'Scheduled' });
                         alert("Match added!");
-                    } catch (err) { console.error(err); alert("Error saving"); }
+                    } catch (err) { 
+                        console.error(err); 
+                        alert("Error saving match: " + err.message); 
+                    }
                 };
 
                 const handleDeleteMatch = async (id) => {
