@@ -123,6 +123,11 @@
         // MAP LINK & DISPLAY GENERATORS
         const getMapLink = (match) => {
             if (!match) return "#";
+            // If the coach provided a specific address, strictly use that!
+            if (match.address && match.address.trim() !== '') {
+                return `https://maps.google.com/?q=${encodeURIComponent(match.address)}`;
+            }
+
             let query = match.location || '';
             if (query.toLowerCase() === 'home') query = 'Freedom High School South Riding VA';
             else if (query.toLowerCase() === 'away') query = `${match.opponent} High School Virginia`;
@@ -262,9 +267,10 @@
                                     <a href={getMapLink(nextMatch)} target="_blank" rel="noopener noreferrer" className="hover:text-[#FFB81C] hover:underline transition-colors">{getDisplayLocation(nextMatch)}</a>
                                 </div>
                             </div>
-                            {nextMatch.busTime && (
-                                <div className="mt-4 pt-3 border-t border-gray-800 text-sm text-[#FFB81C] font-bold">
-                                    🚌 Early Dismissal / Bus Departs: {nextMatch.busTime}
+                            {(nextMatch.busTime || nextMatch.returnTime) && (
+                                <div className="mt-4 pt-3 border-t border-gray-800 text-sm text-[#FFB81C] font-bold flex flex-col gap-1">
+                                    {nextMatch.busTime && <div>🚌 Early Dismissal / Bus Departs: {nextMatch.busTime}</div>}
+                                    {nextMatch.returnTime && <div>🏠 Est. Return to School: {nextMatch.returnTime}</div>}
                                 </div>
                             )}
                         </div>
@@ -343,9 +349,10 @@
                                             <a href={getMapLink(match)} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{getDisplayLocation(match)}</a>
                                         </span>
                                     </div>
-                                    {match.busTime && (
-                                        <div className="text-xs font-bold text-[#b47e00] mt-3 bg-yellow-50 inline-block px-2 py-1 rounded">
-                                            🚌 Bus: {match.busTime}
+                                    {(match.busTime || match.returnTime) && (
+                                        <div className="text-xs font-bold text-[#b47e00] mt-3 bg-yellow-50 inline-block px-3 py-2 rounded-lg border border-yellow-200 flex flex-col gap-1">
+                                            {match.busTime && <div>🚌 Bus Departs: {match.busTime}</div>}
+                                            {match.returnTime && <div>🏠 Est. Return: {match.returnTime}</div>}
                                         </div>
                                     )}
                                 </div>
@@ -396,15 +403,20 @@
             </div>
         );
 
-        const RosterView = ({ rosterWithStats }) => {
+        const RosterView = ({ rosterWithStats, matches, awards }) => {
+            const [selectedPlayer, setSelectedPlayer] = React.useState(null);
+
             const singlesPlayers = rosterWithStats.filter(p => p.flight === 'Singles');
             const doublesPlayers = rosterWithStats.filter(p => p.flight === 'Doubles');
 
             const PlayerCard = ({ player }) => (
-                <div className="glass-card p-4 flex flex-col justify-between">
+                <div 
+                    onClick={() => setSelectedPlayer(player)}
+                    className="glass-card p-4 flex flex-col justify-between cursor-pointer hover:shadow-md hover:border-[#FFB81C] transition-all group"
+                >
                     <div className="flex justify-between items-start mb-4">
                         <div>
-                            <h4 className="font-black text-lg text-gray-800 leading-tight">{formatPrivacyName(player.name)}</h4>
+                            <h4 className="font-black text-lg text-gray-800 leading-tight group-hover:text-[#b47e00] transition-colors">{formatPrivacyName(player.name)}</h4>
                             <span className="text-xs font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded-md mt-2 inline-block">Grade {player.grade}</span>
                         </div>
                         <div className="w-8 h-8 rounded-full bg-black text-[#FFB81C] flex items-center justify-center font-black text-xs border border-[#FFB81C]/50 shadow-sm">
@@ -415,8 +427,117 @@
                         <div className="text-xs text-gray-500 font-bold uppercase tracking-wider">Record</div>
                         <div className="font-black text-lg text-gray-800">{player.wins} - {player.losses}</div>
                     </div>
+                    <div className="mt-3 text-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <span className="text-[9px] font-black uppercase tracking-widest text-[#b47e00] bg-yellow-50 px-2 py-1 rounded-full">View Full Profile ➔</span>
+                    </div>
                 </div>
             );
+
+            const PlayerProfileModal = ({ player }) => {
+                const playerAwards = awards.filter(a => a.playerId === player.id);
+                
+                const playerMatches = [];
+                matches.forEach(m => {
+                    if (m.status === 'Completed' && m.lines) {
+                        m.lines.forEach(line => {
+                            if (line.playerIds && line.playerIds.includes(player.id)) {
+                                playerMatches.push({
+                                    date: m.date,
+                                    school: m.opponent,
+                                    lineId: line.id,
+                                    opponent: line.opponentName,
+                                    score: line.score,
+                                    winner: line.winner
+                                });
+                            }
+                        });
+                    }
+                });
+
+                return (
+                    <div className="modal-overlay" onClick={() => setSelectedPlayer(null)}>
+                        <div className="modal-content max-w-2xl" onClick={e => e.stopPropagation()}>
+                            <div className="flex justify-between items-start mb-6 border-b border-gray-200 pb-4">
+                                <div>
+                                    <h3 className="text-3xl font-black text-gray-900">{formatPrivacyName(player.name)}</h3>
+                                    <p className="text-sm font-bold text-gray-500 uppercase tracking-widest mt-1">Grade {player.grade} • {player.flight} {player.position}</p>
+                                </div>
+                                <button onClick={() => setSelectedPlayer(null)} className="text-gray-400 hover:text-gray-800 font-black text-2xl">✕</button>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-3 mb-8 text-center">
+                                <div className="bg-gray-50 rounded-xl p-3 border border-gray-200 shadow-sm">
+                                    <div className="text-[10px] uppercase font-black tracking-widest text-gray-500 mb-1">Overall</div>
+                                    <div className="text-2xl font-black text-gray-800">{player.wins}-{player.losses}</div>
+                                </div>
+                                <div className="bg-blue-50 rounded-xl p-3 border border-blue-100 shadow-sm">
+                                    <div className="text-[10px] uppercase font-black tracking-widest text-blue-600 mb-1">Singles</div>
+                                    <div className="text-2xl font-black text-blue-800">{player.singlesWins}-{player.singlesLosses}</div>
+                                </div>
+                                <div className="bg-green-50 rounded-xl p-3 border border-green-100 shadow-sm">
+                                    <div className="text-[10px] uppercase font-black tracking-widest text-green-600 mb-1">Doubles</div>
+                                    <div className="text-2xl font-black text-green-800">{player.doublesWins}-{player.doublesLosses}</div>
+                                </div>
+                            </div>
+
+                            {playerAwards.length > 0 && (
+                                <div className="mb-8">
+                                    <h4 className="text-xs font-black text-gray-800 uppercase tracking-widest mb-3 flex items-center gap-2"><Icons.Trophy /> Season Awards</h4>
+                                    <div className="space-y-3">
+                                        {playerAwards.map(a => (
+                                            <div key={a.id} className="bg-black text-white p-4 rounded-xl border-l-4 border-[#FFB81C] shadow-md">
+                                                <div className="text-[10px] text-[#FFB81C] font-black uppercase tracking-widest mb-1">{new Date(a.timestamp).toLocaleDateString()}</div>
+                                                <div className="font-black text-lg italic">{a.title}</div>
+                                                <div className="text-sm text-gray-300 mt-1 font-medium">{a.description}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div>
+                                <h4 className="text-xs font-black text-gray-800 uppercase tracking-widest mb-3 flex items-center gap-2"><Icons.Activity /> Match History</h4>
+                                {playerMatches.length === 0 ? (
+                                    <p className="text-sm text-gray-500 italic bg-gray-50 p-4 rounded-lg text-center border border-dashed border-gray-300">No match data recorded yet.</p>
+                                ) : (
+                                    <div className="overflow-x-auto custom-scrollbar pb-2">
+                                        <table className="w-full text-xs text-left whitespace-nowrap">
+                                            <thead className="bg-gray-100 text-gray-600 uppercase tracking-wider">
+                                                <tr>
+                                                    <th className="px-3 py-2 rounded-tl-lg">Date</th>
+                                                    <th className="px-3 py-2">Opponent</th>
+                                                    <th className="px-3 py-2">Line</th>
+                                                    <th className="px-3 py-2 text-center">Result</th>
+                                                    <th className="px-3 py-2 rounded-tr-lg">Score</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-100">
+                                                {playerMatches.map((m, i) => {
+                                                    const isWin = m.winner === 'Home';
+                                                    const isLoss = m.winner === 'Away';
+                                                    const resultBadge = isWin ? 
+                                                        <span className="bg-green-100 text-green-800 border border-green-200 px-2 py-1 rounded font-black">W</span> : 
+                                                        (isLoss ? <span className="bg-gray-200 text-gray-800 border border-gray-300 px-2 py-1 rounded font-black">L</span> : <span className="bg-gray-100 text-gray-500 px-2 py-1 rounded font-bold">-</span>);
+                                                    
+                                                    return (
+                                                        <tr key={i} className="hover:bg-gray-50 transition-colors">
+                                                            <td className="px-3 py-3 text-gray-500 font-medium">{new Date(m.date).toLocaleDateString(undefined, {month: 'short', day: 'numeric'})}</td>
+                                                            <td className="px-3 py-3 font-bold text-gray-800">{m.school} <span className="font-normal text-gray-500 italic ml-1">({m.opponent || 'TBD'})</span></td>
+                                                            <td className="px-3 py-3 font-black text-gray-600">{m.lineId}</td>
+                                                            <td className="px-3 py-3 text-center">{resultBadge}</td>
+                                                            <td className="px-3 py-3 font-mono text-gray-700">{m.score || "-"}</td>
+                                                        </tr>
+                                                    )
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
 
             return (
                 <div className="animate-slide-up space-y-8">
@@ -424,7 +545,7 @@
                         <div className="flex justify-between items-center mb-2">
                             <h2 className="text-2xl font-black text-gray-800 flex items-center gap-2">Team Roster & Stats</h2>
                         </div>
-                        <p className="text-xs text-gray-500 italic mb-6 border-b border-gray-200 pb-4">* Last names hidden for privacy. Records auto-calculated from Match Scorecards.</p>
+                        <p className="text-xs text-gray-500 italic mb-6 border-b border-gray-200 pb-4">* Click on a player card to view their complete match history and awards.</p>
                         
                         {singlesPlayers.length > 0 && (
                             <div className="mb-6">
@@ -450,6 +571,7 @@
                             </div>
                         )}
                     </div>
+                    {selectedPlayer && <PlayerProfileModal player={selectedPlayer} />}
                 </div>
             );
         };
@@ -500,7 +622,7 @@
         );
 
         const AdminDashboard = ({ user, db, appId, matches, roster, rosterWithStats, announcements, awards, challenges, today }) => {
-            const [matchForm, setMatchForm] = React.useState({ date: '', opponent: '', location: 'Freedom High School', time: '4:00 PM', busTime: '', status: 'Scheduled' });
+            const [matchForm, setMatchForm] = React.useState({ date: '', opponent: '', location: 'Freedom High School', address: '', time: '4:00 PM', busTime: '', returnTime: '', status: 'Scheduled' });
             const [playerForm, setPlayerForm] = React.useState({ name: '', grade: '12', flight: 'Singles', position: 1 });
             const [announcementForm, setAnnouncementForm] = React.useState('');
             const [awardForm, setAwardForm] = React.useState({ title: 'Player of the Match', playerId: '', description: '' });
@@ -528,7 +650,7 @@
                         result: '', 
                         lines: []
                     });
-                    setMatchForm({ date: '', opponent: '', location: 'Freedom High School', time: '4:00 PM', busTime: '', status: 'Scheduled' });
+                    setMatchForm({ date: '', opponent: '', location: 'Freedom High School', address: '', time: '4:00 PM', busTime: '', returnTime: '', status: 'Scheduled' });
                     alert("Match added!");
                 } catch (err) { 
                     console.error(err); 
@@ -895,14 +1017,19 @@
                         <div className="space-y-6">
                             <div className="glass-card p-6 border-t-4 border-gray-800">
                                 <h3 className="font-black text-lg mb-4">Add New Match</h3>
-                                <form onSubmit={handleAddMatch} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <form onSubmit={handleAddMatch} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                     <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Date</label><input type="date" required value={matchForm.date} onChange={e=>setMatchForm({...matchForm, date: e.target.value})} className="w-full border rounded-lg p-2" /></div>
                                     <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Opponent</label><input type="text" required value={matchForm.opponent} onChange={e=>setMatchForm({...matchForm, opponent: e.target.value})} className="w-full border rounded-lg p-2" placeholder="e.g. John Champe High" /></div>
-                                    <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Location</label><input type="text" required value={matchForm.location} onChange={e=>setMatchForm({...matchForm, location: e.target.value})} className="w-full border rounded-lg p-2" placeholder="e.g. Freedom High School" /></div>
                                     <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Match Time</label><input type="text" required value={matchForm.time} onChange={e=>setMatchForm({...matchForm, time: e.target.value})} className="w-full border rounded-lg p-2" /></div>
+                                    
+                                    <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Location Name</label><input type="text" required value={matchForm.location} onChange={e=>setMatchForm({...matchForm, location: e.target.value})} className="w-full border rounded-lg p-2" placeholder="e.g. Freedom High School" /></div>
+                                    <div className="lg:col-span-2"><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Specific Address (For Google Maps)</label><input type="text" value={matchForm.address} onChange={e=>setMatchForm({...matchForm, address: e.target.value})} className="w-full border rounded-lg p-2" placeholder="Leave blank to auto-search the Location Name" /></div>
+                                    
                                     <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Bus Time (Optional)</label><input type="text" value={matchForm.busTime} onChange={e=>setMatchForm({...matchForm, busTime: e.target.value})} className="w-full border rounded-lg p-2" placeholder="e.g. 2:45 PM" /></div>
+                                    <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Est. Return (Optional)</label><input type="text" value={matchForm.returnTime} onChange={e=>setMatchForm({...matchForm, returnTime: e.target.value})} className="w-full border rounded-lg p-2" placeholder="e.g. 7:30 PM" /></div>
                                     <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Initial Status</label><select value={matchForm.status} onChange={e=>setMatchForm({...matchForm, status: e.target.value})} className="w-full border rounded-lg p-2"><option>Scheduled</option><option>Delayed</option><option>Canceled</option></select></div>
-                                    <div className="md:col-span-2"><button type="submit" className="w-full bg-black text-[#FFB81C] font-black py-3 rounded-lg hover:bg-gray-900 transition shadow-md border border-[#FFB81C]">Add to Schedule</button></div>
+                                    
+                                    <div className="md:col-span-2 lg:col-span-3"><button type="submit" className="w-full bg-black text-[#FFB81C] font-black py-3 rounded-lg hover:bg-gray-900 transition shadow-md border border-[#FFB81C]">Add to Schedule</button></div>
                                 </form>
                             </div>
 
@@ -1259,7 +1386,7 @@
                     <main className="flex-1 max-w-4xl w-full mx-auto p-4 md:p-6 pb-24">
                         {view === 'home' && <HomeView announcements={announcements} awards={awards} teamWins={teamWins} teamLosses={teamLosses} pastMatches={pastMatches} nextMatch={nextMatch} setView={setView} expandedMatch={expandedMatch} setExpandedMatch={setExpandedMatch} roster={roster} />}
                         {view === 'schedule' && <ScheduleView upcomingMatches={upcomingMatches} pastMatches={pastMatches} expandedMatch={expandedMatch} setExpandedMatch={setExpandedMatch} roster={roster} />}
-                        {view === 'roster' && <RosterView rosterWithStats={rosterWithStats} />}
+                        {view === 'roster' && <RosterView rosterWithStats={rosterWithStats} matches={matches} awards={awards} />}
                         {view === 'resources' && <ResourcesView />}
                         {view === 'admin' && isAdmin && <AdminDashboard user={user} db={db} appId={appId} matches={matches} roster={roster} rosterWithStats={rosterWithStats} announcements={announcements} awards={awards} challenges={challenges} today={today} />}
                     </main>
