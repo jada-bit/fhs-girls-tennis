@@ -144,6 +144,748 @@
             ];
         };
 
+        // --- EXTRACTED COMPONENTS (MOVED OUTSIDE TO PREVENT UNMOUNTING BUGS) ---
+
+        const ScorecardView = ({ match, roster }) => {
+            if (!match.lines) return <div className="text-center p-4 text-sm text-gray-500 italic">Detailed scorecard not available for this match.</div>;
+            
+            const getPlayerNames = (ids) => {
+                if (!ids || ids.length === 0) return "TBD";
+                const names = ids.map(id => {
+                    const player = roster.find(r => r.id === id);
+                    return player ? formatPrivacyName(player.name) : "TBD";
+                });
+                return names.join(" & ");
+            };
+
+            return (
+                <div className="mt-4 border-t border-gray-200 pt-4 overflow-x-auto custom-scrollbar pb-2">
+                    <table className="w-full text-xs text-left whitespace-nowrap">
+                        <thead className="bg-gray-100 text-gray-600 uppercase">
+                            <tr>
+                                <th className="px-3 py-2 rounded-tl-lg">Line</th>
+                                <th className="px-3 py-2">Home (Freedom)</th>
+                                <th className="px-3 py-2">Visitor ({match.opponent})</th>
+                                <th className="px-3 py-2">Score</th>
+                                <th className="px-3 py-2 rounded-tr-lg">Winner</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                            {match.lines.map((line, idx) => (
+                                <tr key={idx} className={line.winner === 'Home' ? 'bg-yellow-50/50' : ''}>
+                                    <td className="px-3 py-2 font-bold text-gray-700">{line.id}</td>
+                                    <td className="px-3 py-2 font-medium">{getPlayerNames(line.playerIds)}</td>
+                                    <td className="px-3 py-2 text-gray-600">{line.opponentName || "-"}</td>
+                                    <td className="px-3 py-2 font-mono">{line.score || "-"}</td>
+                                    <td className={`px-3 py-2 font-bold ${line.winner === 'Home' ? 'text-[#b47e00]' : line.winner === 'Away' ? 'text-gray-800' : 'text-gray-400'}`}>
+                                        {line.winner || "-"}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            );
+        };
+
+        const HomeView = ({ announcements, teamWins, teamLosses, pastMatches, nextMatch, setView, expandedMatch, setExpandedMatch, roster }) => (
+            <div className="space-y-6 animate-slide-up">
+                {announcements.length > 0 && (
+                    <div className="bg-yellow-100 border-l-4 border-[#FFB81C] p-4 rounded-r-lg shadow-sm">
+                        <div className="flex items-center gap-2 text-yellow-800 font-bold mb-1">
+                            <Icons.Alert /> <span>Latest Coach Announcement</span>
+                        </div>
+                        <p className="text-yellow-900 text-sm">{announcements[0].text}</p>
+                        <p className="text-yellow-700 text-xs mt-2">{new Date(announcements[0].timestamp).toLocaleDateString()} @ {new Date(announcements[0].timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                    </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="glass-card p-6 flex flex-col items-center justify-center text-center">
+                        <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-1">Season Record</h3>
+                        <div className="text-5xl font-black text-black">{teamWins} - {teamLosses}</div>
+                    </div>
+                    <div className="glass-card p-6 flex flex-col items-center justify-center text-center">
+                        <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-1">Matches Played</h3>
+                        <div className="text-5xl font-black text-black">{pastMatches.length}</div>
+                    </div>
+                </div>
+
+                {nextMatch ? (
+                    <div className="bg-black text-white rounded-2xl p-6 relative overflow-hidden shadow-xl border border-[#FFB81C]/30">
+                        <div className="absolute -right-6 -top-6 opacity-10 transform rotate-12 scale-150"><Icons.TennisBall /></div>
+                        <div className="relative z-10">
+                            <div className="flex justify-between items-start mb-4">
+                                <div className="inline-block bg-[#FFB81C] text-black text-xs font-black uppercase px-3 py-1 rounded-full">Next Up</div>
+                                <StatusBadge status={nextMatch.status} />
+                            </div>
+                            <h2 className="text-3xl font-black mb-2">vs. {nextMatch.opponent}</h2>
+                            <div className="flex flex-col sm:flex-row gap-4 text-gray-300 font-medium">
+                                <div className="flex items-center gap-2"><span>📅</span> {new Date(nextMatch.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</div>
+                                <div className="flex items-center gap-2"><span>⏰</span> {nextMatch.time}</div>
+                                <div className="flex items-center gap-2">
+                                    <Icons.MapPin />
+                                    <a href={getMapLink(nextMatch.location)} target="_blank" rel="noopener noreferrer" className="hover:text-[#FFB81C] hover:underline transition-colors">{nextMatch.location}</a>
+                                </div>
+                            </div>
+                            {nextMatch.busTime && (
+                                <div className="mt-4 pt-3 border-t border-gray-800 text-sm text-[#FFB81C] font-bold">
+                                    🚌 Early Dismissal / Bus Departs: {nextMatch.busTime}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="bg-gray-100 border-2 border-dashed border-gray-300 rounded-2xl p-8 text-center">
+                        <div className="text-gray-400 mb-2 flex justify-center"><Icons.Calendar /></div>
+                        <h3 className="text-lg font-bold text-gray-700">No Upcoming Matches</h3>
+                        <p className="text-gray-500 text-sm">The schedule is currently clear.</p>
+                    </div>
+                )}
+
+                {pastMatches.length > 0 && (
+                    <div>
+                        <div className="flex justify-between items-end mb-4">
+                            <h2 className="text-xl font-bold text-gray-800">Recent Results</h2>
+                            <button onClick={() => setView('schedule')} className="text-sm text-yellow-600 font-semibold hover:underline">View All</button>
+                        </div>
+                        <div className="space-y-3">
+                            {pastMatches.slice().reverse().slice(0, 3).map(match => {
+                                const isWin = match.result && match.result.toUpperCase().startsWith('W');
+                                const isExpanded = expandedMatch === match.id;
+                                return (
+                                    <div key={match.id} className="glass-card p-4 transition-all">
+                                        <div 
+                                            className="flex items-center justify-between cursor-pointer"
+                                            onClick={() => setExpandedMatch(isExpanded ? null : match.id)}
+                                        >
+                                            <div>
+                                                <div className="text-sm text-gray-500 mb-1 flex items-center gap-2">
+                                                    {new Date(match.date).toLocaleDateString()} 
+                                                    {match.status === 'Completed' ? null : <StatusBadge status={match.status} />}
+                                                </div>
+                                                <div className="font-bold text-gray-800 text-lg">vs. {match.opponent}</div>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                {match.status === 'Completed' && (
+                                                    <div className={`px-4 py-2 rounded-lg font-black text-lg border ${isWin ? 'bg-green-100 text-green-800 border-green-200' : 'bg-gray-100 text-gray-800 border-gray-200'}`}>
+                                                        {match.result}
+                                                    </div>
+                                                )}
+                                                <div className="text-gray-400 hover:text-gray-800 transition-colors">
+                                                    {isExpanded ? <Icons.ChevronUp /> : <Icons.ChevronDown />}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {isExpanded && <ScorecardView match={match} roster={roster} />}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+
+        const ScheduleView = ({ upcomingMatches, pastMatches, expandedMatch, setExpandedMatch, roster }) => (
+            <div className="animate-slide-up space-y-6">
+                <h2 className="text-2xl font-black text-gray-800 mb-4 border-b border-gray-200 pb-2">Season Schedule</h2>
+                
+                {upcomingMatches.length > 0 && (
+                    <div className="mb-8">
+                        <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-3">Upcoming</h3>
+                        <div className="space-y-3">
+                            {upcomingMatches.map(match => (
+                                <div key={match.id} className="glass-card p-4 border-l-4 border-[#FFB81C]">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <div className="font-black text-lg text-gray-800">vs. {match.opponent}</div>
+                                        <StatusBadge status={match.status} />
+                                    </div>
+                                    <div className="text-sm text-gray-600 flex flex-wrap gap-x-4 gap-y-2 font-medium items-center">
+                                        <span>{new Date(match.date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</span>
+                                        <span>• {match.time}</span>
+                                        <span className="flex items-center gap-1">
+                                            • <Icons.MapPin />
+                                            <a href={getMapLink(match.location)} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{match.location}</a>
+                                        </span>
+                                    </div>
+                                    {match.busTime && (
+                                        <div className="text-xs font-bold text-[#b47e00] mt-3 bg-yellow-50 inline-block px-2 py-1 rounded">
+                                            🚌 Bus: {match.busTime}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                <div>
+                    <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-3">Results</h3>
+                    {pastMatches.length > 0 ? (
+                        <div className="space-y-3">
+                            {pastMatches.slice().reverse().map(match => {
+                                const isWin = match.result && match.result.toUpperCase().startsWith('W');
+                                const isExpanded = expandedMatch === match.id;
+                                return (
+                                    <div key={match.id} className={`glass-card p-4 border-l-4 ${isWin ? 'border-green-500' : 'border-gray-400'}`}>
+                                        <div 
+                                            className="flex items-center justify-between cursor-pointer"
+                                            onClick={() => setExpandedMatch(isExpanded ? null : match.id)}
+                                        >
+                                            <div>
+                                                <div className="font-bold text-gray-800 text-lg">vs. {match.opponent}</div>
+                                                <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                                                    {new Date(match.date).toLocaleDateString()} • <a href={getMapLink(match.location)} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-blue-600 flex items-center gap-1"><Icons.MapPin /> {match.location}</a>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                {match.status === 'Completed' ? (
+                                                    <div className="font-black text-xl text-gray-800">{match.result}</div>
+                                                ) : (
+                                                    <StatusBadge status={match.status} />
+                                                )}
+                                                <div className="text-gray-400">
+                                                    {isExpanded ? <Icons.ChevronUp /> : <Icons.ChevronDown />}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {isExpanded && <ScorecardView match={match} roster={roster} />}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <p className="text-gray-500 italic text-sm">No matches played yet.</p>
+                    )}
+                </div>
+            </div>
+        );
+
+        const RosterView = ({ rosterWithStats }) => {
+            const singlesPlayers = rosterWithStats.filter(p => p.flight === 'Singles');
+            const doublesPlayers = rosterWithStats.filter(p => p.flight === 'Doubles');
+
+            const PlayerCard = ({ player }) => (
+                <div className="glass-card p-4 flex flex-col justify-between">
+                    <div className="flex justify-between items-start mb-4">
+                        <div>
+                            <h4 className="font-black text-lg text-gray-800 leading-tight">{formatPrivacyName(player.name)}</h4>
+                            <span className="text-xs font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded-md mt-2 inline-block">Grade {player.grade}</span>
+                        </div>
+                        <div className="w-8 h-8 rounded-full bg-black text-[#FFB81C] flex items-center justify-center font-black text-xs border border-[#FFB81C]/50 shadow-sm">
+                            {player.flight === 'Singles' ? `S${player.position}` : `D${player.position}`}
+                        </div>
+                    </div>
+                    <div className="flex justify-between items-end border-t border-gray-100 pt-3">
+                        <div className="text-xs text-gray-500 font-bold uppercase tracking-wider">Record</div>
+                        <div className="font-black text-lg text-gray-800">{player.wins} - {player.losses}</div>
+                    </div>
+                </div>
+            );
+
+            return (
+                <div className="animate-slide-up space-y-8">
+                    <div>
+                        <div className="flex justify-between items-center mb-2">
+                            <h2 className="text-2xl font-black text-gray-800 flex items-center gap-2">Team Roster & Stats</h2>
+                        </div>
+                        <p className="text-xs text-gray-500 italic mb-6 border-b border-gray-200 pb-4">* Last names hidden for privacy. Records auto-calculated from Match Scorecards.</p>
+                        
+                        {singlesPlayers.length > 0 && (
+                            <div className="mb-6">
+                                <h3 className="text-sm font-bold text-black uppercase tracking-widest mb-3 bg-[#FFB81C] px-3 py-1 inline-block rounded-md">Singles Lineup</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {singlesPlayers.map(p => <PlayerCard key={p.id} player={p} />)}
+                                </div>
+                            </div>
+                        )}
+
+                        {doublesPlayers.length > 0 && (
+                            <div>
+                                <h3 className="text-sm font-bold text-black uppercase tracking-widest mb-3 bg-gray-200 border border-gray-300 px-3 py-1 inline-block rounded-md">Doubles Lineup</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {doublesPlayers.map(p => <PlayerCard key={p.id} player={p} />)}
+                                </div>
+                            </div>
+                        )}
+
+                        {rosterWithStats.length === 0 && (
+                            <div className="text-center p-8 bg-gray-50 rounded-2xl border border-dashed border-gray-300">
+                                <p className="text-gray-500">Roster has not been published yet.</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const ResourcesView = () => (
+            <div className="animate-slide-up space-y-6">
+                <h2 className="text-2xl font-black text-gray-800 mb-2 border-b border-gray-200 pb-2">Parent & Player Resources</h2>
+                <p className="text-sm text-gray-600 mb-6">Important forms and information for the current season.</p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <a href="PASTE_PHYSICAL_FORM_LINK_HERE" target="_blank" rel="noopener noreferrer" className="glass-card p-6 border-l-4 border-red-500 hover:shadow-md transition cursor-pointer block">
+                        <h3 className="font-black text-lg mb-2">Athletic Physical Forms</h3>
+                        <p className="text-xs text-gray-500 mb-4">Required by the state association before the first practice. Must be dated after May 1st.</p>
+                        <span className="text-sm font-bold text-red-600">Download PDF ➔</span>
+                    </a>
+                    
+                    <a href="PASTE_HANDBOOK_LINK_HERE" target="_blank" rel="noopener noreferrer" className="glass-card p-6 border-l-4 border-blue-500 hover:shadow-md transition cursor-pointer block">
+                        <h3 className="font-black text-lg mb-2">Team Handbook</h3>
+                        <p className="text-xs text-gray-500 mb-4">Contains coach philosophy, attendance expectations, and varsity lettering criteria.</p>
+                        <span className="text-sm font-bold text-blue-600">View Rules ➔</span>
+                    </a>
+
+                    <a href="PASTE_CHALLENGE_RULES_LINK_HERE" target="_blank" rel="noopener noreferrer" className="glass-card p-6 border-l-4 border-black hover:shadow-md transition cursor-pointer block">
+                        <h3 className="font-black text-lg mb-2">Challenge Match Rules</h3>
+                        <p className="text-xs text-gray-500 mb-4">Official guidelines on how ladder positions are determined, challenge formats, and lineup changes.</p>
+                        <span className="text-sm font-bold text-gray-800">View Ladder Rules ➔</span>
+                    </a>
+
+                    <a href="PASTE_COMMUNICATION_POLICY_LINK_HERE" target="_blank" rel="noopener noreferrer" className="glass-card p-6 border-l-4 border-purple-500 hover:shadow-md transition cursor-pointer block">
+                        <h3 className="font-black text-lg mb-2">Communication Policy</h3>
+                        <p className="text-xs text-gray-500 mb-4">Coach contact information, Remind/Band app codes, and our "24-Hour Rule" for match disputes.</p>
+                        <span className="text-sm font-bold text-purple-600">View Policy ➔</span>
+                    </a>
+
+                    <a href="PASTE_SNACK_SIGNUP_LINK_HERE" target="_blank" rel="noopener noreferrer" className="glass-card p-6 border-l-4 border-[#FFB81C] hover:shadow-md transition cursor-pointer block">
+                        <h3 className="font-black text-lg mb-2">Match Snack Schedule</h3>
+                        <p className="text-xs text-gray-500 mb-4">View which parents are assigned to bring water and snacks for home and away matches.</p>
+                        <span className="text-sm font-bold text-yellow-600">View Sign-up ➔</span>
+                    </a>
+
+                    <a href="PASTE_TRANSPORTATION_LINK_HERE" target="_blank" rel="noopener noreferrer" className="glass-card p-6 border-l-4 border-green-500 hover:shadow-md transition cursor-pointer block">
+                        <h3 className="font-black text-lg mb-2">Transportation Policy</h3>
+                        <p className="text-xs text-gray-500 mb-4">School district guidelines for bus travel and student release forms for away matches.</p>
+                        <span className="text-sm font-bold text-green-600">Read Policy ➔</span>
+                    </a>
+                </div>
+            </div>
+        );
+
+        const AdminDashboard = ({ user, db, appId, matches, roster, rosterWithStats, announcements, challenges, today }) => {
+            const [matchForm, setMatchForm] = React.useState({ date: '', opponent: '', location: 'Home', time: '4:00 PM', busTime: '', status: 'Scheduled' });
+            const [playerForm, setPlayerForm] = React.useState({ name: '', grade: '12', flight: 'Singles', position: 1 });
+            const [announcementForm, setAnnouncementForm] = React.useState('');
+            const [challengeForm, setChallengeForm] = React.useState({ date: today, challengerId: '', defenderId: '', score: '', winnerId: '' });
+            const [activeTab, setActiveTab] = React.useState('dashboard');
+            
+            const [editingMatchId, setEditingMatchId] = React.useState(null);
+            const [scorecardData, setScorecardData] = React.useState([]);
+
+            const handleAddMatch = async (e) => {
+                e.preventDefault();
+                if(!user || !db) return alert("Not connected to database");
+                try {
+                    await db.collection(`artifacts/${appId}/public/data/matches`).add({
+                        ...matchForm, 
+                        result: '', 
+                        lines: []
+                    });
+                    setMatchForm({ date: '', opponent: '', location: 'Home', time: '4:00 PM', busTime: '', status: 'Scheduled' });
+                    alert("Match added!");
+                } catch (err) { 
+                    console.error(err); 
+                    alert("Error saving match: " + err.message); 
+                }
+            };
+
+            const handleDeleteMatch = async (id) => {
+                if(!confirm("Delete this match?")) return;
+                if(!user || !db) return;
+                await db.collection(`artifacts/${appId}/public/data/matches`).doc(id).delete();
+            };
+
+            const handleUpdateMatchStatus = async (id, status) => {
+                if(!user || !db) return;
+                await db.collection(`artifacts/${appId}/public/data/matches`).doc(id).update({ status });
+            };
+
+            const openScorecard = (match) => {
+                setEditingMatchId(match.id);
+                if (match.lines && match.lines.length > 0) {
+                    setScorecardData(match.lines);
+                } else {
+                    setScorecardData(generateDefaultLines());
+                }
+            };
+
+            const updateLine = (idx, field, value) => {
+                const newData = [...scorecardData];
+                // Safely clone the specific line to avoid reference bugs
+                const newLine = { ...newData[idx], playerIds: [...newData[idx].playerIds] };
+                if (field === 'player1') { newLine.playerIds[0] = value; }
+                else if (field === 'player2') { newLine.playerIds[1] = value; }
+                else { newLine[field] = value; }
+                newData[idx] = newLine;
+                setScorecardData(newData);
+            };
+
+            const saveScorecard = async () => {
+                if(!user || !db) return alert("Not connected to database");
+                const homeWins = scorecardData.filter(l => l.winner === 'Home').length;
+                const awayWins = scorecardData.filter(l => l.winner === 'Away').length;
+                
+                let newResult = '';
+                if (homeWins > awayWins) newResult = `W ${homeWins}-${awayWins}`;
+                else if (awayWins > homeWins) newResult = `L ${awayWins}-${homeWins}`;
+                else if (homeWins === 0 && awayWins === 0) newResult = ''; 
+                else newResult = `T ${homeWins}-${awayWins}`; 
+
+                try {
+                    await db.collection(`artifacts/${appId}/public/data/matches`).doc(editingMatchId).update({
+                        lines: scorecardData,
+                        result: newResult,
+                        status: newResult ? 'Completed' : 'Scheduled'
+                    });
+                    setEditingMatchId(null);
+                    alert("Scorecard saved! Player records have been updated automatically.");
+                } catch (e) {
+                    alert("Error saving scorecard");
+                }
+            };
+
+            const handleAddPlayer = async (e) => {
+                e.preventDefault();
+                if(!user || !db) return alert("Not connected to database");
+                try {
+                    await db.collection(`artifacts/${appId}/public/data/roster`).add({
+                        ...playerForm, position: parseInt(playerForm.position)
+                    });
+                    setPlayerForm({ name: '', grade: '12', flight: 'Singles', position: 1 });
+                    alert("Player added!");
+                } catch (err) { console.error(err); alert("Error saving"); }
+            };
+
+            const handleDeletePlayer = async (id) => {
+                if(!confirm("Remove this player?")) return;
+                if(!user || !db) return;
+                await db.collection(`artifacts/${appId}/public/data/roster`).doc(id).delete();
+            };
+
+            const handlePostAnnouncement = async (e) => {
+                e.preventDefault();
+                if(!user || !db || !announcementForm.trim()) return;
+                try {
+                    await db.collection(`artifacts/${appId}/public/data/announcements`).add({
+                        text: announcementForm,
+                        timestamp: Date.now()
+                    });
+                    setAnnouncementForm('');
+                    alert("Announcement posted to home page!");
+                } catch (err) { console.error(err); alert("Error saving"); }
+            };
+
+            const handleLogChallenge = async (e) => {
+                e.preventDefault();
+                if(!user || !db) return alert("Not connected to database");
+                if(challengeForm.challengerId === challengeForm.defenderId) return alert("Players must be different.");
+                try {
+                    await db.collection(`artifacts/${appId}/public/data/challenges`).add({
+                        ...challengeForm,
+                        timestamp: Date.now()
+                    });
+                    setChallengeForm({ date: today, challengerId: '', defenderId: '', score: '', winnerId: '' });
+                    alert("Challenge match logged! Remember to update roster positions in the 'Roster' tab if the ladder changed.");
+                } catch (err) { console.error(err); alert("Error saving"); }
+            };
+
+            const handleDeleteChallenge = async (id) => {
+                if(!confirm("Delete this challenge record?")) return;
+                if(!user || !db) return;
+                await db.collection(`artifacts/${appId}/public/data/challenges`).doc(id).delete();
+            };
+
+            const getAdminPlayerName = (id) => {
+                const p = roster.find(r => r.id === id);
+                return p ? p.name : 'Unknown';
+            };
+
+            return (
+                <div className="animate-slide-up relative">
+                    <div className="bg-black text-white p-6 rounded-2xl mb-6 shadow-lg flex justify-between items-center border-l-8 border-[#FFB81C]">
+                        <div>
+                            <h2 className="text-2xl font-black flex items-center gap-2"><Icons.Settings /> Coach Command Center</h2>
+                            <p className="text-gray-400 text-sm mt-1">Manage schedule, announcements, and match scorecards.</p>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 mb-6 border-b border-gray-300 pb-2 overflow-x-auto">
+                        <button onClick={() => setActiveTab('dashboard')} className={`px-4 py-2 font-bold rounded-lg ${activeTab==='dashboard'?'bg-[#FFB81C] text-black':'text-gray-600 hover:bg-gray-200'}`}>Season Dashboard</button>
+                        <button onClick={() => setActiveTab('announce')} className={`px-4 py-2 font-bold rounded-lg ${activeTab==='announce'?'bg-[#FFB81C] text-black':'text-gray-600 hover:bg-gray-200'}`}>Announcements</button>
+                        <button onClick={() => setActiveTab('matches')} className={`px-4 py-2 font-bold rounded-lg ${activeTab==='matches'?'bg-[#FFB81C] text-black':'text-gray-600 hover:bg-gray-200'}`}>Matches & Scores</button>
+                        <button onClick={() => setActiveTab('roster')} className={`px-4 py-2 font-bold rounded-lg ${activeTab==='roster'?'bg-[#FFB81C] text-black':'text-gray-600 hover:bg-gray-200'}`}>Roster</button>
+                    </div>
+
+                    {activeTab === 'dashboard' && (
+                        <div className="space-y-6">
+                            <div className="glass-card p-6 border-t-4 border-black">
+                                <h3 className="font-black text-xl mb-1 flex items-center gap-2"><Icons.Activity /> Player Analytics (Nominations)</h3>
+                                <p className="text-xs text-gray-500 mb-4">Export these auto-calculated stats at the end of the season for District/Regional team recommendations.</p>
+                                <div className="overflow-x-auto custom-scrollbar pb-2">
+                                    <table className="w-full text-sm text-left whitespace-nowrap">
+                                        <thead className="bg-gray-100 text-gray-600 uppercase text-xs">
+                                            <tr>
+                                                <th className="px-3 py-2 rounded-tl-lg">Player</th>
+                                                <th className="px-3 py-2">Ladder</th>
+                                                <th className="px-3 py-2">Overall</th>
+                                                <th className="px-3 py-2">Singles W-L</th>
+                                                <th className="px-3 py-2">Doubles W-L</th>
+                                                <th className="px-3 py-2 rounded-tr-lg">Win %</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100">
+                                            {rosterWithStats.map(p => {
+                                                const totalMatches = p.wins + p.losses;
+                                                const winPct = totalMatches > 0 ? Math.round((p.wins / totalMatches) * 100) : 0;
+                                                return (
+                                                    <tr key={p.id} className="hover:bg-gray-50">
+                                                        <td className="px-3 py-2 font-bold text-gray-800">{p.name}</td>
+                                                        <td className="px-3 py-2 text-gray-600">{p.flight.charAt(0)}{p.position}</td>
+                                                        <td className="px-3 py-2 font-black">{p.wins}-{p.losses}</td>
+                                                        <td className="px-3 py-2 text-blue-700 font-medium">{p.singlesWins}-{p.singlesLosses}</td>
+                                                        <td className="px-3 py-2 text-green-700 font-medium">{p.doublesWins}-{p.doublesLosses}</td>
+                                                        <td className="px-3 py-2 font-bold">{winPct}%</td>
+                                                    </tr>
+                                                )
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div className="glass-card p-6 border-t-4 border-[#FFB81C]">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="font-black text-xl flex items-center gap-2"><Icons.Swords /> Challenge Match Logger</h3>
+                                </div>
+                                <p className="text-xs text-gray-500 mb-4 bg-yellow-50 p-2 rounded border border-yellow-100">Documenting challenge matches aligns with USTA ADM transparency guidelines. This private log provides objective data for parents questioning lineup changes.</p>
+                                
+                                <form onSubmit={handleLogChallenge} className="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Date</label>
+                                            <input type="date" required value={challengeForm.date} onChange={e=>setChallengeForm({...challengeForm, date: e.target.value})} className="w-full border rounded p-2 text-sm" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Challenger</label>
+                                            <select required value={challengeForm.challengerId} onChange={e=>setChallengeForm({...challengeForm, challengerId: e.target.value})} className="w-full border rounded p-2 text-sm">
+                                                <option value="">Select...</option>
+                                                {roster.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Defender</label>
+                                            <select required value={challengeForm.defenderId} onChange={e=>setChallengeForm({...challengeForm, defenderId: e.target.value})} className="w-full border rounded p-2 text-sm">
+                                                <option value="">Select...</option>
+                                                {roster.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Score / Notes</label>
+                                            <input type="text" required value={challengeForm.score} onChange={e=>setChallengeForm({...challengeForm, score: e.target.value})} placeholder="e.g. 8-6" className="w-full border rounded p-2 text-sm" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Winner</label>
+                                            <select required value={challengeForm.winnerId} onChange={e=>setChallengeForm({...challengeForm, winnerId: e.target.value})} className="w-full border rounded p-2 text-sm">
+                                                <option value="">Select Winner...</option>
+                                                {challengeForm.challengerId && <option value={challengeForm.challengerId}>Challenger</option>}
+                                                {challengeForm.defenderId && <option value={challengeForm.defenderId}>Defender</option>}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <button type="submit" className="mt-4 w-full bg-black text-[#FFB81C] font-black py-2 rounded shadow border border-[#FFB81C] hover:bg-gray-900 transition">Log Challenge Result</button>
+                                </form>
+
+                                <h4 className="font-bold text-gray-700 uppercase tracking-widest text-xs mb-2">Challenge History</h4>
+                                <div className="space-y-2">
+                                    {challenges.length === 0 && <p className="text-sm text-gray-400 italic">No challenge matches logged yet.</p>}
+                                    {challenges.map(c => {
+                                        const challengerName = getAdminPlayerName(c.challengerId);
+                                        const defenderName = getAdminPlayerName(c.defenderId);
+                                        const winnerName = getAdminPlayerName(c.winnerId);
+                                        return (
+                                            <div key={c.id} className="flex justify-between items-center p-3 bg-white border border-gray-200 rounded shadow-sm">
+                                                <div>
+                                                    <div className="text-xs text-gray-500">{new Date(c.date).toLocaleDateString()}</div>
+                                                    <div className="font-medium text-sm">
+                                                        <span className={c.winnerId === c.challengerId ? 'font-black text-green-700' : ''}>{challengerName}</span> 
+                                                        <span className="text-gray-400 mx-2">vs</span> 
+                                                        <span className={c.winnerId === c.defenderId ? 'font-black text-green-700' : ''}>{defenderName}</span>
+                                                    </div>
+                                                    <div className="text-xs text-gray-600 mt-1">Score: <span className="font-mono bg-gray-100 px-1 rounded">{c.score}</span></div>
+                                                </div>
+                                                <div className="flex flex-col items-end gap-2">
+                                                    <span className="text-[10px] uppercase font-black bg-[#FFB81C]/20 text-[#b47e00] px-2 py-1 rounded">Winner: {winnerName}</span>
+                                                    <button onClick={() => handleDeleteChallenge(c.id)} className="text-xs text-red-500 hover:underline">Delete</button>
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'announce' && (
+                        <div className="glass-card p-6 border-t-4 border-[#FFB81C]">
+                            <h3 className="font-black text-lg mb-2">Post Live Announcement</h3>
+                            <p className="text-xs text-gray-500 mb-4">This will appear at the very top of the Home page for all visitors. Use for rainouts, delays, etc.</p>
+                            <form onSubmit={handlePostAnnouncement}>
+                                <textarea 
+                                    required 
+                                    value={announcementForm} 
+                                    onChange={e=>setAnnouncementForm(e.target.value)} 
+                                    className="w-full border rounded-lg p-3 mb-4 h-24"
+                                    placeholder="e.g., Today's match against Lincoln is cancelled due to rain. Indoor practice at 4 PM."
+                                />
+                                <button type="submit" className="bg-black text-[#FFB81C] font-black px-6 py-3 rounded-lg hover:bg-gray-900 transition shadow-md border border-[#FFB81C]">Publish to Home Page</button>
+                            </form>
+                        </div>
+                    )}
+
+                    {activeTab === 'matches' && (
+                        <div className="space-y-6">
+                            <div className="glass-card p-6 border-t-4 border-gray-800">
+                                <h3 className="font-black text-lg mb-4">Add New Match</h3>
+                                <form onSubmit={handleAddMatch} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Date</label><input type="date" required value={matchForm.date} onChange={e=>setMatchForm({...matchForm, date: e.target.value})} className="w-full border rounded-lg p-2" /></div>
+                                    <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Opponent</label><input type="text" required value={matchForm.opponent} onChange={e=>setMatchForm({...matchForm, opponent: e.target.value})} className="w-full border rounded-lg p-2" placeholder="e.g. John Champe High" /></div>
+                                    <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Location</label><select value={matchForm.location} onChange={e=>setMatchForm({...matchForm, location: e.target.value})} className="w-full border rounded-lg p-2"><option>Home</option><option>Away</option></select></div>
+                                    <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Match Time</label><input type="text" required value={matchForm.time} onChange={e=>setMatchForm({...matchForm, time: e.target.value})} className="w-full border rounded-lg p-2" /></div>
+                                    <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Bus Time (Optional)</label><input type="text" value={matchForm.busTime} onChange={e=>setMatchForm({...matchForm, busTime: e.target.value})} className="w-full border rounded-lg p-2" placeholder="e.g. 2:45 PM" /></div>
+                                    <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Initial Status</label><select value={matchForm.status} onChange={e=>setMatchForm({...matchForm, status: e.target.value})} className="w-full border rounded-lg p-2"><option>Scheduled</option><option>Delayed</option><option>Canceled</option></select></div>
+                                    <div className="md:col-span-2"><button type="submit" className="w-full bg-black text-[#FFB81C] font-black py-3 rounded-lg hover:bg-gray-900 transition shadow-md border border-[#FFB81C]">Add to Schedule</button></div>
+                                </form>
+                            </div>
+
+                            <div className="glass-card p-6">
+                                <h3 className="font-black text-lg mb-4">Matches & Scorecards</h3>
+                                <p className="text-xs text-gray-500 mb-4 bg-gray-100 p-2 rounded">Click "Edit Scorecard" to log individual line results. Team scores and player Win/Loss records will auto-update based on the scorecard!</p>
+                                <div className="space-y-3">
+                                    {matches.slice().reverse().map(m => (
+                                        <div key={m.id} className="flex flex-col md:flex-row justify-between items-center p-4 bg-white border border-gray-200 rounded-lg gap-4 shadow-sm">
+                                            <div className="flex-1 w-full">
+                                                <div className="font-black text-gray-800 text-lg">vs {m.opponent}</div>
+                                                <div className="text-sm text-gray-500 flex gap-2 items-center">{m.date} • {m.result ? <span className="font-bold text-green-600">{m.result}</span> : "No Score"}</div>
+                                            </div>
+                                            
+                                            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                                                <select value={m.status} onChange={(e) => handleUpdateMatchStatus(m.id, e.target.value)} className="border rounded px-2 py-2 text-sm bg-gray-50 focus:outline-none">
+                                                    <option>Scheduled</option><option>In Progress</option><option>Completed</option><option>Delayed</option><option>Canceled</option>
+                                                </select>
+                                                <button onClick={() => openScorecard(m)} className="bg-blue-100 text-blue-800 px-4 py-2 rounded font-bold hover:bg-blue-200 text-sm whitespace-nowrap border border-blue-200">
+                                                    {m.lines && m.lines.length > 0 ? '📝 Edit Scorecard' : '📝 Log Results'}
+                                                </button>
+                                                <button onClick={() => handleDeleteMatch(m.id)} className="bg-red-100 text-red-600 px-3 py-2 rounded font-bold hover:bg-red-200 text-sm">Del</button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'roster' && (
+                        <div className="space-y-6">
+                            <div className="glass-card p-6 border-t-4 border-blue-500">
+                                <h3 className="font-black text-lg mb-2">Add Player</h3>
+                                <p className="text-xs text-red-600 font-bold mb-4 bg-red-50 p-2 rounded inline-block">🔒 Privacy: Enter FULL name. Site will publicly truncate to First Name, Last Initial.</p>
+                                <form onSubmit={handleAddPlayer} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Full Player Name</label><input type="text" required value={playerForm.name} onChange={e=>setPlayerForm({...playerForm, name: e.target.value})} className="w-full border rounded-lg p-2" placeholder="e.g. John Smith" /></div>
+                                    <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Grade</label><select value={playerForm.grade} onChange={e=>setPlayerForm({...playerForm, grade: e.target.value})} className="w-full border rounded-lg p-2"><option>9</option><option>10</option><option>11</option><option>12</option></select></div>
+                                    <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Flight</label><select value={playerForm.flight} onChange={e=>setPlayerForm({...playerForm, flight: e.target.value})} className="w-full border rounded-lg p-2"><option>Singles</option><option>Doubles</option></select></div>
+                                    <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Line Position</label><input type="number" min="1" max="6" required value={playerForm.position} onChange={e=>setPlayerForm({...playerForm, position: e.target.value})} className="w-full border rounded-lg p-2" /></div>
+                                    <div className="md:col-span-2"><button type="submit" className="w-full bg-blue-600 text-white font-black py-3 rounded-lg hover:bg-blue-700 transition shadow-md">Add Player</button></div>
+                                </form>
+                            </div>
+
+                            <div className="glass-card p-6">
+                                <h3 className="font-black text-lg mb-4">Current Roster</h3>
+                                <p className="text-xs text-gray-500 mb-4 bg-gray-100 p-2 rounded">Win/Loss records are now calculated automatically from Match Scorecards.</p>
+                                <div className="space-y-2">
+                                    {rosterWithStats.map(p => (
+                                        <div key={p.id} className="flex justify-between items-center p-3 bg-gray-50 border border-gray-200 rounded-lg gap-2">
+                                            <div>
+                                                <div className="font-bold text-gray-800">{p.name} <span className="text-xs font-normal text-gray-400 italic">(Displays as {formatPrivacyName(p.name)})</span></div>
+                                                <div className="text-xs text-gray-500">{p.flight} {p.position} • Record: {p.wins}-{p.losses}</div>
+                                            </div>
+                                            <button onClick={() => handleDeletePlayer(p.id)} className="bg-red-100 text-red-600 px-3 py-2 rounded font-bold hover:bg-red-200 text-sm">Remove</button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* FULL SCORECARD MODAL */}
+                    {editingMatchId && (
+                        <div className="modal-overlay" onClick={() => setEditingMatchId(null)}>
+                            <div className="modal-content max-w-4xl" onClick={e => e.stopPropagation()}>
+                                <div className="flex justify-between items-center mb-4 border-b pb-3">
+                                    <h3 className="text-2xl font-black flex items-center gap-2">USTA Official Scorecard</h3>
+                                    <button onClick={() => setEditingMatchId(null)} className="text-gray-400 hover:text-gray-800 font-bold text-xl">✕</button>
+                                </div>
+                                <p className="text-sm text-gray-500 mb-4">Complete lines to auto-calculate the final score. Any line without a winner is excluded.</p>
+                                
+                                <div className="overflow-x-auto custom-scrollbar pb-4">
+                                    <table className="w-full text-sm text-left whitespace-nowrap">
+                                        <thead className="bg-black text-[#FFB81C] uppercase text-xs">
+                                            <tr>
+                                                <th className="p-2 rounded-tl-lg">Line</th>
+                                                <th className="p-2">Home Player(s)</th>
+                                                <th className="p-2">Away Player(s)</th>
+                                                <th className="p-2">Set Scores</th>
+                                                <th className="p-2 rounded-tr-lg">Winner</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-200">
+                                            {scorecardData.map((line, idx) => (
+                                                <tr key={idx} className="hover:bg-gray-50">
+                                                    <td className="p-2 font-bold text-gray-700 bg-gray-100/50">{line.id}</td>
+                                                    <td className="p-2 flex flex-col gap-1">
+                                                        <select value={line.playerIds[0] || ''} onChange={(e) => updateLine(idx, 'player1', e.target.value)} className="border p-1 rounded text-xs">
+                                                            <option value="">Select Roster...</option>
+                                                            {roster.map(r => <option key={r.id} value={r.id}>{r.name} ({r.flight.charAt(0)}{r.position})</option>)}
+                                                        </select>
+                                                        {line.type === 'Doubles' && (
+                                                            <select value={line.playerIds[1] || ''} onChange={(e) => updateLine(idx, 'player2', e.target.value)} className="border p-1 rounded text-xs mt-1">
+                                                                <option value="">Select Partner...</option>
+                                                                {roster.map(r => <option key={r.id} value={r.id}>{r.name} ({r.flight.charAt(0)}{r.position})</option>)}
+                                                            </select>
+                                                        )}
+                                                    </td>
+                                                    <td className="p-2">
+                                                        <input type="text" value={line.opponentName} onChange={(e) => updateLine(idx, 'opponentName', e.target.value)} className="border p-1 rounded w-full text-xs" placeholder="Opponent Name(s)" />
+                                                    </td>
+                                                    <td className="p-2">
+                                                        <input type="text" value={line.score} onChange={(e) => updateLine(idx, 'score', e.target.value)} className="border p-1 rounded w-24 text-xs font-mono" placeholder="e.g. 6-4, 6-2" />
+                                                    </td>
+                                                    <td className="p-2">
+                                                        <select value={line.winner} onChange={(e) => updateLine(idx, 'winner', e.target.value)} className={`border p-1 rounded text-xs font-bold ${line.winner==='Home'?'bg-yellow-100 text-[#b47e00]':line.winner==='Away'?'bg-gray-200':''}`}>
+                                                            <option value="">- TBD -</option>
+                                                            <option value="Home">Home (W)</option>
+                                                            <option value="Away">Away (L)</option>
+                                                        </select>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div className="mt-6 pt-4 border-t flex justify-end gap-3">
+                                    <button onClick={() => setEditingMatchId(null)} className="px-6 py-3 font-bold text-gray-500 hover:bg-gray-100 rounded-lg">Cancel</button>
+                                    <button onClick={saveScorecard} className="px-6 py-3 bg-green-600 text-white font-black rounded-lg hover:bg-green-700 shadow-md">Save & Auto-Calculate Score</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                </div>
+            );
+        };
+
         function App() {
             // STATE
             const [user, setUser] = React.useState(null);
@@ -307,776 +1049,6 @@
                 }
             };
 
-            // --- UI COMPONENTS ---
-
-            const PinModal = () => (
-                <div className="modal-overlay" onClick={() => setShowPinModal(false)}>
-                    <div className="modal-content" onClick={e => e.stopPropagation()}>
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-xl font-bold flex items-center gap-2"><Icons.Lock /> Coach Portal Access</h3>
-                            <button onClick={() => setShowPinModal(false)} className="text-gray-400 hover:text-gray-700">✕</button>
-                        </div>
-                        <p className="text-sm text-gray-500 mb-4">Enter the coach PIN to manage schedule and roster stats.</p>
-                        <form onSubmit={handlePinSubmit}>
-                            <input 
-                                type="password" 
-                                value={pinInput} 
-                                onChange={(e) => setPinInput(e.target.value)}
-                                placeholder="Enter PIN"
-                                className="w-full border border-gray-300 rounded-lg px-4 py-3 mb-2 text-center text-xl tracking-widest focus:outline-none focus:border-yellow-500 focus:ring-2 focus:ring-yellow-100"
-                                autoFocus
-                            />
-                            {pinError && <p className="text-red-500 text-sm mb-4 text-center">{pinError}</p>}
-                            <button type="submit" className="w-full bg-black text-white font-bold py-3 rounded-lg hover:bg-gray-900 transition border border-yellow-500">Unlock</button>
-                        </form>
-                    </div>
-                </div>
-            );
-
-            // Detailed Scorecard UI Component (Used in Home & Schedule)
-            const ScorecardView = ({ match }) => {
-                if (!match.lines) return <div className="text-center p-4 text-sm text-gray-500 italic">Detailed scorecard not available for this match.</div>;
-                
-                const getPlayerNames = (ids) => {
-                    if (!ids || ids.length === 0) return "TBD";
-                    const names = ids.map(id => {
-                        const player = roster.find(r => r.id === id);
-                        return player ? formatPrivacyName(player.name) : "TBD";
-                    });
-                    return names.join(" & ");
-                };
-
-                return (
-                    <div className="mt-4 border-t border-gray-200 pt-4 overflow-x-auto custom-scrollbar pb-2">
-                        <table className="w-full text-xs text-left whitespace-nowrap">
-                            <thead className="bg-gray-100 text-gray-600 uppercase">
-                                <tr>
-                                    <th className="px-3 py-2 rounded-tl-lg">Line</th>
-                                    <th className="px-3 py-2">Home (Freedom)</th>
-                                    <th className="px-3 py-2">Visitor ({match.opponent})</th>
-                                    <th className="px-3 py-2">Score</th>
-                                    <th className="px-3 py-2 rounded-tr-lg">Winner</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {match.lines.map((line, idx) => (
-                                    <tr key={idx} className={line.winner === 'Home' ? 'bg-yellow-50/50' : ''}>
-                                        <td className="px-3 py-2 font-bold text-gray-700">{line.id}</td>
-                                        <td className="px-3 py-2 font-medium">{getPlayerNames(line.playerIds)}</td>
-                                        <td className="px-3 py-2 text-gray-600">{line.opponentName || "-"}</td>
-                                        <td className="px-3 py-2 font-mono">{line.score || "-"}</td>
-                                        <td className={`px-3 py-2 font-bold ${line.winner === 'Home' ? 'text-[#b47e00]' : line.winner === 'Away' ? 'text-gray-800' : 'text-gray-400'}`}>
-                                            {line.winner || "-"}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                );
-            };
-
-            const HomeView = () => (
-                <div className="space-y-6 animate-slide-up">
-                    
-                    {/* Live Announcements */}
-                    {announcements.length > 0 && (
-                        <div className="bg-yellow-100 border-l-4 border-[#FFB81C] p-4 rounded-r-lg shadow-sm">
-                            <div className="flex items-center gap-2 text-yellow-800 font-bold mb-1">
-                                <Icons.Alert /> <span>Latest Coach Announcement</span>
-                            </div>
-                            <p className="text-yellow-900 text-sm">{announcements[0].text}</p>
-                            <p className="text-yellow-700 text-xs mt-2">{new Date(announcements[0].timestamp).toLocaleDateString()} @ {new Date(announcements[0].timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
-                        </div>
-                    )}
-
-                    {/* Hero Stats */}
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="glass-card p-6 flex flex-col items-center justify-center text-center">
-                            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-1">Season Record</h3>
-                            <div className="text-5xl font-black text-black">{teamWins} - {teamLosses}</div>
-                        </div>
-                        <div className="glass-card p-6 flex flex-col items-center justify-center text-center">
-                            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-1">Matches Played</h3>
-                            <div className="text-5xl font-black text-black">{pastMatches.length}</div>
-                        </div>
-                    </div>
-
-                    {/* Next Match Highlight */}
-                    {nextMatch ? (
-                        <div className="bg-black text-white rounded-2xl p-6 relative overflow-hidden shadow-xl border border-[#FFB81C]/30">
-                            <div className="absolute -right-6 -top-6 opacity-10 transform rotate-12 scale-150"><Icons.TennisBall /></div>
-                            <div className="relative z-10">
-                                <div className="flex justify-between items-start mb-4">
-                                    <div className="inline-block bg-[#FFB81C] text-black text-xs font-black uppercase px-3 py-1 rounded-full">Next Up</div>
-                                    <StatusBadge status={nextMatch.status} />
-                                </div>
-                                <h2 className="text-3xl font-black mb-2">vs. {nextMatch.opponent}</h2>
-                                <div className="flex flex-col sm:flex-row gap-4 text-gray-300 font-medium">
-                                    <div className="flex items-center gap-2"><span>📅</span> {new Date(nextMatch.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</div>
-                                    <div className="flex items-center gap-2"><span>⏰</span> {nextMatch.time}</div>
-                                    <div className="flex items-center gap-2">
-                                        <Icons.MapPin />
-                                        <a href={getMapLink(nextMatch.location)} target="_blank" rel="noopener noreferrer" className="hover:text-[#FFB81C] hover:underline transition-colors">{nextMatch.location}</a>
-                                    </div>
-                                </div>
-                                {nextMatch.busTime && (
-                                    <div className="mt-4 pt-3 border-t border-gray-800 text-sm text-[#FFB81C] font-bold">
-                                        🚌 Early Dismissal / Bus Departs: {nextMatch.busTime}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="bg-gray-100 border-2 border-dashed border-gray-300 rounded-2xl p-8 text-center">
-                            <div className="text-gray-400 mb-2 flex justify-center"><Icons.Calendar /></div>
-                            <h3 className="text-lg font-bold text-gray-700">No Upcoming Matches</h3>
-                            <p className="text-gray-500 text-sm">The schedule is currently clear.</p>
-                        </div>
-                    )}
-
-                    {/* Recent Results */}
-                    {pastMatches.length > 0 && (
-                        <div>
-                            <div className="flex justify-between items-end mb-4">
-                                <h2 className="text-xl font-bold text-gray-800">Recent Results</h2>
-                                <button onClick={() => setView('schedule')} className="text-sm text-yellow-600 font-semibold hover:underline">View All</button>
-                            </div>
-                            <div className="space-y-3">
-                                {pastMatches.slice().reverse().slice(0, 3).map(match => {
-                                    const isWin = match.result && match.result.toUpperCase().startsWith('W');
-                                    const isExpanded = expandedMatch === match.id;
-                                    return (
-                                        <div key={match.id} className="glass-card p-4 transition-all">
-                                            <div 
-                                                className="flex items-center justify-between cursor-pointer"
-                                                onClick={() => setExpandedMatch(isExpanded ? null : match.id)}
-                                            >
-                                                <div>
-                                                    <div className="text-sm text-gray-500 mb-1 flex items-center gap-2">
-                                                        {new Date(match.date).toLocaleDateString()} 
-                                                        {match.status === 'Completed' ? null : <StatusBadge status={match.status} />}
-                                                    </div>
-                                                    <div className="font-bold text-gray-800 text-lg">vs. {match.opponent}</div>
-                                                </div>
-                                                <div className="flex items-center gap-3">
-                                                    {match.status === 'Completed' && (
-                                                        <div className={`px-4 py-2 rounded-lg font-black text-lg border ${isWin ? 'bg-green-100 text-green-800 border-green-200' : 'bg-gray-100 text-gray-800 border-gray-200'}`}>
-                                                            {match.result}
-                                                        </div>
-                                                    )}
-                                                    <div className="text-gray-400 hover:text-gray-800 transition-colors">
-                                                        {isExpanded ? <Icons.ChevronUp /> : <Icons.ChevronDown />}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            {isExpanded && <ScorecardView match={match} />}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    )}
-                </div>
-            );
-
-            const ScheduleView = () => (
-                <div className="animate-slide-up space-y-6">
-                    <h2 className="text-2xl font-black text-gray-800 mb-4 border-b border-gray-200 pb-2">Season Schedule</h2>
-                    
-                    {upcomingMatches.length > 0 && (
-                        <div className="mb-8">
-                            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-3">Upcoming</h3>
-                            <div className="space-y-3">
-                                {upcomingMatches.map(match => (
-                                    <div key={match.id} className="glass-card p-4 border-l-4 border-[#FFB81C]">
-                                        <div className="flex justify-between items-start mb-2">
-                                            <div className="font-black text-lg text-gray-800">vs. {match.opponent}</div>
-                                            <StatusBadge status={match.status} />
-                                        </div>
-                                        <div className="text-sm text-gray-600 flex flex-wrap gap-x-4 gap-y-2 font-medium items-center">
-                                            <span>{new Date(match.date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</span>
-                                            <span>• {match.time}</span>
-                                            <span className="flex items-center gap-1">
-                                                • <Icons.MapPin />
-                                                <a href={getMapLink(match.location)} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{match.location}</a>
-                                            </span>
-                                        </div>
-                                        {match.busTime && (
-                                            <div className="text-xs font-bold text-[#b47e00] mt-3 bg-yellow-50 inline-block px-2 py-1 rounded">
-                                                🚌 Bus: {match.busTime}
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    <div>
-                        <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-3">Results</h3>
-                        {pastMatches.length > 0 ? (
-                            <div className="space-y-3">
-                                {pastMatches.slice().reverse().map(match => {
-                                    const isWin = match.result && match.result.toUpperCase().startsWith('W');
-                                    const isExpanded = expandedMatch === match.id;
-                                    return (
-                                        <div key={match.id} className={`glass-card p-4 border-l-4 ${isWin ? 'border-green-500' : 'border-gray-400'}`}>
-                                            <div 
-                                                className="flex items-center justify-between cursor-pointer"
-                                                onClick={() => setExpandedMatch(isExpanded ? null : match.id)}
-                                            >
-                                                <div>
-                                                    <div className="font-bold text-gray-800 text-lg">vs. {match.opponent}</div>
-                                                    <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                                                        {new Date(match.date).toLocaleDateString()} • <a href={getMapLink(match.location)} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-blue-600 flex items-center gap-1"><Icons.MapPin /> {match.location}</a>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-3">
-                                                    {match.status === 'Completed' ? (
-                                                        <div className="font-black text-xl text-gray-800">{match.result}</div>
-                                                    ) : (
-                                                        <StatusBadge status={match.status} />
-                                                    )}
-                                                    <div className="text-gray-400">
-                                                        {isExpanded ? <Icons.ChevronUp /> : <Icons.ChevronDown />}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            {isExpanded && <ScorecardView match={match} />}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        ) : (
-                            <p className="text-gray-500 italic text-sm">No matches played yet.</p>
-                        )}
-                    </div>
-                </div>
-            );
-
-            const RosterView = () => {
-                const singlesPlayers = rosterWithStats.filter(p => p.flight === 'Singles');
-                const doublesPlayers = rosterWithStats.filter(p => p.flight === 'Doubles');
-
-                const PlayerCard = ({ player }) => (
-                    <div className="glass-card p-4 flex flex-col justify-between">
-                        <div className="flex justify-between items-start mb-4">
-                            <div>
-                                {/* PRIVACY FILTER APPLIED HERE */}
-                                <h4 className="font-black text-lg text-gray-800 leading-tight">{formatPrivacyName(player.name)}</h4>
-                                <span className="text-xs font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded-md mt-2 inline-block">Grade {player.grade}</span>
-                            </div>
-                            <div className="w-8 h-8 rounded-full bg-black text-[#FFB81C] flex items-center justify-center font-black text-xs border border-[#FFB81C]/50 shadow-sm">
-                                {player.flight === 'Singles' ? `S${player.position}` : `D${player.position}`}
-                            </div>
-                        </div>
-                        <div className="flex justify-between items-end border-t border-gray-100 pt-3">
-                            <div className="text-xs text-gray-500 font-bold uppercase tracking-wider">Record</div>
-                            <div className="font-black text-lg text-gray-800">{player.wins} - {player.losses}</div>
-                        </div>
-                    </div>
-                );
-
-                return (
-                    <div className="animate-slide-up space-y-8">
-                        <div>
-                            <div className="flex justify-between items-center mb-2">
-                                <h2 className="text-2xl font-black text-gray-800 flex items-center gap-2">Team Roster & Stats</h2>
-                            </div>
-                            <p className="text-xs text-gray-500 italic mb-6 border-b border-gray-200 pb-4">* Last names hidden for privacy. Records auto-calculated from Match Scorecards.</p>
-                            
-                            {singlesPlayers.length > 0 && (
-                                <div className="mb-6">
-                                    <h3 className="text-sm font-bold text-black uppercase tracking-widest mb-3 bg-[#FFB81C] px-3 py-1 inline-block rounded-md">Singles Lineup</h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                        {singlesPlayers.map(p => <PlayerCard key={p.id} player={p} />)}
-                                    </div>
-                                </div>
-                            )}
-
-                            {doublesPlayers.length > 0 && (
-                                <div>
-                                    <h3 className="text-sm font-bold text-black uppercase tracking-widest mb-3 bg-gray-200 border border-gray-300 px-3 py-1 inline-block rounded-md">Doubles Lineup</h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                        {doublesPlayers.map(p => <PlayerCard key={p.id} player={p} />)}
-                                    </div>
-                                </div>
-                            )}
-
-                            {roster.length === 0 && (
-                                <div className="text-center p-8 bg-gray-50 rounded-2xl border border-dashed border-gray-300">
-                                    <p className="text-gray-500">Roster has not been published yet.</p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                );
-            };
-
-            const ResourcesView = () => (
-                <div className="animate-slide-up space-y-6">
-                    <h2 className="text-2xl font-black text-gray-800 mb-2 border-b border-gray-200 pb-2">Parent & Player Resources</h2>
-                    <p className="text-sm text-gray-600 mb-6">Important forms and information for the current season.</p>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <a href="PASTE_PHYSICAL_FORM_LINK_HERE" target="_blank" rel="noopener noreferrer" className="glass-card p-6 border-l-4 border-red-500 hover:shadow-md transition cursor-pointer block">
-                            <h3 className="font-black text-lg mb-2">Athletic Physical Forms</h3>
-                            <p className="text-xs text-gray-500 mb-4">Required by the state association before the first practice. Must be dated after May 1st.</p>
-                            <span className="text-sm font-bold text-red-600">Download PDF ➔</span>
-                        </a>
-                        
-                        <a href="PASTE_HANDBOOK_LINK_HERE" target="_blank" rel="noopener noreferrer" className="glass-card p-6 border-l-4 border-blue-500 hover:shadow-md transition cursor-pointer block">
-                            <h3 className="font-black text-lg mb-2">Team Handbook</h3>
-                            <p className="text-xs text-gray-500 mb-4">Contains coach philosophy, attendance expectations, and varsity lettering criteria.</p>
-                            <span className="text-sm font-bold text-blue-600">View Rules ➔</span>
-                        </a>
-
-                        <a href="PASTE_CHALLENGE_RULES_LINK_HERE" target="_blank" rel="noopener noreferrer" className="glass-card p-6 border-l-4 border-black hover:shadow-md transition cursor-pointer block">
-                            <h3 className="font-black text-lg mb-2">Challenge Match Rules</h3>
-                            <p className="text-xs text-gray-500 mb-4">Official guidelines on how ladder positions are determined, challenge formats, and lineup changes.</p>
-                            <span className="text-sm font-bold text-gray-800">View Ladder Rules ➔</span>
-                        </a>
-
-                        <a href="PASTE_COMMUNICATION_POLICY_LINK_HERE" target="_blank" rel="noopener noreferrer" className="glass-card p-6 border-l-4 border-purple-500 hover:shadow-md transition cursor-pointer block">
-                            <h3 className="font-black text-lg mb-2">Communication Policy</h3>
-                            <p className="text-xs text-gray-500 mb-4">Coach contact information, Remind/Band app codes, and our "24-Hour Rule" for match disputes.</p>
-                            <span className="text-sm font-bold text-purple-600">View Policy ➔</span>
-                        </a>
-
-                        <a href="PASTE_SNACK_SIGNUP_LINK_HERE" target="_blank" rel="noopener noreferrer" className="glass-card p-6 border-l-4 border-[#FFB81C] hover:shadow-md transition cursor-pointer block">
-                            <h3 className="font-black text-lg mb-2">Match Snack Schedule</h3>
-                            <p className="text-xs text-gray-500 mb-4">View which parents are assigned to bring water and snacks for home and away matches.</p>
-                            <span className="text-sm font-bold text-yellow-600">View Sign-up ➔</span>
-                        </a>
-
-                        <a href="PASTE_TRANSPORTATION_LINK_HERE" target="_blank" rel="noopener noreferrer" className="glass-card p-6 border-l-4 border-green-500 hover:shadow-md transition cursor-pointer block">
-                            <h3 className="font-black text-lg mb-2">Transportation Policy</h3>
-                            <p className="text-xs text-gray-500 mb-4">School district guidelines for bus travel and student release forms for away matches.</p>
-                            <span className="text-sm font-bold text-green-600">Read Policy ➔</span>
-                        </a>
-                    </div>
-                </div>
-            );
-
-            const AdminDashboard = () => {
-                // Admin State
-                const [matchForm, setMatchForm] = React.useState({ date: '', opponent: '', location: 'Home', time: '4:00 PM', busTime: '', status: 'Scheduled' });
-                const [playerForm, setPlayerForm] = React.useState({ name: '', grade: '12', flight: 'Singles', position: 1 });
-                const [announcementForm, setAnnouncementForm] = React.useState('');
-                const [challengeForm, setChallengeForm] = React.useState({ date: today, challengerId: '', defenderId: '', score: '', winnerId: '' });
-                const [activeTab, setActiveTab] = React.useState('dashboard');
-                
-                // Scorecard Modal State
-                const [editingMatchId, setEditingMatchId] = React.useState(null);
-                const [scorecardData, setScorecardData] = React.useState([]);
-
-                const handleAddMatch = async (e) => {
-                    e.preventDefault();
-                    if(!db) return;
-                    try {
-                        await db.collection(`artifacts/${appId}/public/data/matches`).add({
-                            ...matchForm, 
-                            result: '', 
-                            lines: []
-                        });
-                        setMatchForm({ date: '', opponent: '', location: 'Home', time: '4:00 PM', busTime: '', status: 'Scheduled' });
-                        alert("Match added!");
-                    } catch (err) { 
-                        console.error(err); 
-                        alert("Error saving match: " + err.message); 
-                    }
-                };
-
-                const handleDeleteMatch = async (id) => {
-                    if(!confirm("Delete this match?")) return;
-                    await db.collection(`artifacts/${appId}/public/data/matches`).doc(id).delete();
-                };
-
-                const handleUpdateMatchStatus = async (id, status) => {
-                    await db.collection(`artifacts/${appId}/public/data/matches`).doc(id).update({ status });
-                };
-
-                // Open Scorecard Modal
-                const openScorecard = (match) => {
-                    setEditingMatchId(match.id);
-                    if (match.lines && match.lines.length > 0) {
-                        setScorecardData(match.lines);
-                    } else {
-                        setScorecardData(generateDefaultLines());
-                    }
-                };
-
-                // Update Line in Scorecard
-                const updateLine = (idx, field, value) => {
-                    const newData = [...scorecardData];
-                    if (field === 'player1') { newData[idx].playerIds[0] = value; }
-                    else if (field === 'player2') { newData[idx].playerIds[1] = value; }
-                    else { newData[idx][field] = value; }
-                    setScorecardData(newData);
-                };
-
-                // Save Full Scorecard and Auto-Calculate Team Score
-                const saveScorecard = async () => {
-                    const homeWins = scorecardData.filter(l => l.winner === 'Home').length;
-                    const awayWins = scorecardData.filter(l => l.winner === 'Away').length;
-                    
-                    let newResult = '';
-                    if (homeWins > awayWins) newResult = `W ${homeWins}-${awayWins}`;
-                    else if (awayWins > homeWins) newResult = `L ${awayWins}-${homeWins}`;
-                    else if (homeWins === 0 && awayWins === 0) newResult = ''; // Not played yet
-                    else newResult = `T ${homeWins}-${awayWins}`; 
-
-                    try {
-                        await db.collection(`artifacts/${appId}/public/data/matches`).doc(editingMatchId).update({
-                            lines: scorecardData,
-                            result: newResult,
-                            status: newResult ? 'Completed' : 'Scheduled'
-                        });
-                        setEditingMatchId(null);
-                        alert("Scorecard saved! Player records have been updated automatically.");
-                    } catch (e) {
-                        alert("Error saving scorecard");
-                    }
-                };
-
-                const handleAddPlayer = async (e) => {
-                    e.preventDefault();
-                    if(!db) return;
-                    try {
-                        await db.collection(`artifacts/${appId}/public/data/roster`).add({
-                            ...playerForm, position: parseInt(playerForm.position)
-                        });
-                        setPlayerForm({ name: '', grade: '12', flight: 'Singles', position: 1 });
-                        alert("Player added!");
-                    } catch (err) { console.error(err); alert("Error saving"); }
-                };
-
-                const handleDeletePlayer = async (id) => {
-                    if(!confirm("Remove this player?")) return;
-                    await db.collection(`artifacts/${appId}/public/data/roster`).doc(id).delete();
-                };
-
-                const handlePostAnnouncement = async (e) => {
-                    e.preventDefault();
-                    if(!db || !announcementForm.trim()) return;
-                    try {
-                        await db.collection(`artifacts/${appId}/public/data/announcements`).add({
-                            text: announcementForm,
-                            timestamp: Date.now()
-                        });
-                        setAnnouncementForm('');
-                        alert("Announcement posted to home page!");
-                    } catch (err) { console.error(err); alert("Error saving"); }
-                };
-
-                const handleLogChallenge = async (e) => {
-                    e.preventDefault();
-                    if(!db) return;
-                    if(challengeForm.challengerId === challengeForm.defenderId) return alert("Players must be different.");
-                    try {
-                        await db.collection(`artifacts/${appId}/public/data/challenges`).add({
-                            ...challengeForm,
-                            timestamp: Date.now()
-                        });
-                        setChallengeForm({ date: today, challengerId: '', defenderId: '', score: '', winnerId: '' });
-                        alert("Challenge match logged! Remember to update roster positions in the 'Roster' tab if the ladder changed.");
-                    } catch (err) { console.error(err); alert("Error saving"); }
-                };
-
-                const handleDeleteChallenge = async (id) => {
-                    if(!confirm("Delete this challenge record?")) return;
-                    await db.collection(`artifacts/${appId}/public/data/challenges`).doc(id).delete();
-                };
-
-                const getAdminPlayerName = (id) => {
-                    const p = roster.find(r => r.id === id);
-                    return p ? p.name : 'Unknown';
-                };
-
-                return (
-                    <div className="animate-slide-up relative">
-                        <div className="bg-black text-white p-6 rounded-2xl mb-6 shadow-lg flex justify-between items-center border-l-8 border-[#FFB81C]">
-                            <div>
-                                <h2 className="text-2xl font-black flex items-center gap-2"><Icons.Settings /> Coach Command Center</h2>
-                                <p className="text-gray-400 text-sm mt-1">Manage schedule, announcements, and match scorecards.</p>
-                            </div>
-                        </div>
-
-                        <div className="flex flex-wrap gap-2 mb-6 border-b border-gray-300 pb-2 overflow-x-auto">
-                            <button onClick={() => setActiveTab('dashboard')} className={`px-4 py-2 font-bold rounded-lg ${activeTab==='dashboard'?'bg-[#FFB81C] text-black':'text-gray-600 hover:bg-gray-200'}`}>Season Dashboard</button>
-                            <button onClick={() => setActiveTab('announce')} className={`px-4 py-2 font-bold rounded-lg ${activeTab==='announce'?'bg-[#FFB81C] text-black':'text-gray-600 hover:bg-gray-200'}`}>Announcements</button>
-                            <button onClick={() => setActiveTab('matches')} className={`px-4 py-2 font-bold rounded-lg ${activeTab==='matches'?'bg-[#FFB81C] text-black':'text-gray-600 hover:bg-gray-200'}`}>Matches & Scores</button>
-                            <button onClick={() => setActiveTab('roster')} className={`px-4 py-2 font-bold rounded-lg ${activeTab==='roster'?'bg-[#FFB81C] text-black':'text-gray-600 hover:bg-gray-200'}`}>Roster</button>
-                        </div>
-
-                        {activeTab === 'dashboard' && (
-                            <div className="space-y-6">
-                                <div className="glass-card p-6 border-t-4 border-black">
-                                    <h3 className="font-black text-xl mb-1 flex items-center gap-2"><Icons.Activity /> Player Analytics (Nominations)</h3>
-                                    <p className="text-xs text-gray-500 mb-4">Export these auto-calculated stats at the end of the season for District/Regional team recommendations.</p>
-                                    <div className="overflow-x-auto custom-scrollbar pb-2">
-                                        <table className="w-full text-sm text-left whitespace-nowrap">
-                                            <thead className="bg-gray-100 text-gray-600 uppercase text-xs">
-                                                <tr>
-                                                    <th className="px-3 py-2 rounded-tl-lg">Player</th>
-                                                    <th className="px-3 py-2">Ladder</th>
-                                                    <th className="px-3 py-2">Overall</th>
-                                                    <th className="px-3 py-2">Singles W-L</th>
-                                                    <th className="px-3 py-2">Doubles W-L</th>
-                                                    <th className="px-3 py-2 rounded-tr-lg">Win %</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-gray-100">
-                                                {rosterWithStats.map(p => {
-                                                    const totalMatches = p.wins + p.losses;
-                                                    const winPct = totalMatches > 0 ? Math.round((p.wins / totalMatches) * 100) : 0;
-                                                    return (
-                                                        <tr key={p.id} className="hover:bg-gray-50">
-                                                            <td className="px-3 py-2 font-bold text-gray-800">{p.name}</td>
-                                                            <td className="px-3 py-2 text-gray-600">{p.flight.charAt(0)}{p.position}</td>
-                                                            <td className="px-3 py-2 font-black">{p.wins}-{p.losses}</td>
-                                                            <td className="px-3 py-2 text-blue-700 font-medium">{p.singlesWins}-{p.singlesLosses}</td>
-                                                            <td className="px-3 py-2 text-green-700 font-medium">{p.doublesWins}-{p.doublesLosses}</td>
-                                                            <td className="px-3 py-2 font-bold">{winPct}%</td>
-                                                        </tr>
-                                                    )
-                                                })}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-
-                                <div className="glass-card p-6 border-t-4 border-[#FFB81C]">
-                                    <div className="flex justify-between items-center mb-4">
-                                        <h3 className="font-black text-xl flex items-center gap-2"><Icons.Swords /> Challenge Match Logger</h3>
-                                    </div>
-                                    <p className="text-xs text-gray-500 mb-4 bg-yellow-50 p-2 rounded border border-yellow-100">Documenting challenge matches aligns with USTA ADM transparency guidelines. This private log provides objective data for parents questioning lineup changes.</p>
-                                    
-                                    <form onSubmit={handleLogChallenge} className="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-6">
-                                        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-                                            <div>
-                                                <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Date</label>
-                                                <input type="date" required value={challengeForm.date} onChange={e=>setChallengeForm({...challengeForm, date: e.target.value})} className="w-full border rounded p-2 text-sm" />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Challenger</label>
-                                                <select required value={challengeForm.challengerId} onChange={e=>setChallengeForm({...challengeForm, challengerId: e.target.value})} className="w-full border rounded p-2 text-sm">
-                                                    <option value="">Select...</option>
-                                                    {roster.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                                                </select>
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Defender</label>
-                                                <select required value={challengeForm.defenderId} onChange={e=>setChallengeForm({...challengeForm, defenderId: e.target.value})} className="w-full border rounded p-2 text-sm">
-                                                    <option value="">Select...</option>
-                                                    {roster.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                                                </select>
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Score / Notes</label>
-                                                <input type="text" required value={challengeForm.score} onChange={e=>setChallengeForm({...challengeForm, score: e.target.value})} placeholder="e.g. 8-6" className="w-full border rounded p-2 text-sm" />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Winner</label>
-                                                <select required value={challengeForm.winnerId} onChange={e=>setChallengeForm({...challengeForm, winnerId: e.target.value})} className="w-full border rounded p-2 text-sm">
-                                                    <option value="">Select Winner...</option>
-                                                    {challengeForm.challengerId && <option value={challengeForm.challengerId}>Challenger</option>}
-                                                    {challengeForm.defenderId && <option value={challengeForm.defenderId}>Defender</option>}
-                                                </select>
-                                            </div>
-                                        </div>
-                                        <button type="submit" className="mt-4 w-full bg-black text-[#FFB81C] font-black py-2 rounded shadow border border-[#FFB81C] hover:bg-gray-900 transition">Log Challenge Result</button>
-                                    </form>
-
-                                    <h4 className="font-bold text-gray-700 uppercase tracking-widest text-xs mb-2">Challenge History</h4>
-                                    <div className="space-y-2">
-                                        {challenges.length === 0 && <p className="text-sm text-gray-400 italic">No challenge matches logged yet.</p>}
-                                        {challenges.map(c => {
-                                            const challengerName = getAdminPlayerName(c.challengerId);
-                                            const defenderName = getAdminPlayerName(c.defenderId);
-                                            const winnerName = getAdminPlayerName(c.winnerId);
-                                            return (
-                                                <div key={c.id} className="flex justify-between items-center p-3 bg-white border border-gray-200 rounded shadow-sm">
-                                                    <div>
-                                                        <div className="text-xs text-gray-500">{new Date(c.date).toLocaleDateString()}</div>
-                                                        <div className="font-medium text-sm">
-                                                            <span className={c.winnerId === c.challengerId ? 'font-black text-green-700' : ''}>{challengerName}</span> 
-                                                            <span className="text-gray-400 mx-2">vs</span> 
-                                                            <span className={c.winnerId === c.defenderId ? 'font-black text-green-700' : ''}>{defenderName}</span>
-                                                        </div>
-                                                        <div className="text-xs text-gray-600 mt-1">Score: <span className="font-mono bg-gray-100 px-1 rounded">{c.score}</span></div>
-                                                    </div>
-                                                    <div className="flex flex-col items-end gap-2">
-                                                        <span className="text-[10px] uppercase font-black bg-[#FFB81C]/20 text-[#b47e00] px-2 py-1 rounded">Winner: {winnerName}</span>
-                                                        <button onClick={() => handleDeleteChallenge(c.id)} className="text-xs text-red-500 hover:underline">Delete</button>
-                                                    </div>
-                                                </div>
-                                            )
-                                        })}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {activeTab === 'announce' && (
-                            <div className="glass-card p-6 border-t-4 border-[#FFB81C]">
-                                <h3 className="font-black text-lg mb-2">Post Live Announcement</h3>
-                                <p className="text-xs text-gray-500 mb-4">This will appear at the very top of the Home page for all visitors. Use for rainouts, delays, etc.</p>
-                                <form onSubmit={handlePostAnnouncement}>
-                                    <textarea 
-                                        required 
-                                        value={announcementForm} 
-                                        onChange={e=>setAnnouncementForm(e.target.value)} 
-                                        className="w-full border rounded-lg p-3 mb-4 h-24"
-                                        placeholder="e.g., Today's match against Lincoln is cancelled due to rain. Indoor practice at 4 PM."
-                                    />
-                                    <button type="submit" className="bg-black text-[#FFB81C] font-black px-6 py-3 rounded-lg hover:bg-gray-900 transition shadow-md border border-[#FFB81C]">Publish to Home Page</button>
-                                </form>
-                            </div>
-                        )}
-
-                        {activeTab === 'matches' && (
-                            <div className="space-y-6">
-                                <div className="glass-card p-6 border-t-4 border-gray-800">
-                                    <h3 className="font-black text-lg mb-4">Add New Match</h3>
-                                    <form onSubmit={handleAddMatch} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Date</label><input type="date" required value={matchForm.date} onChange={e=>setMatchForm({...matchForm, date: e.target.value})} className="w-full border rounded-lg p-2" /></div>
-                                        <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Opponent</label><input type="text" required value={matchForm.opponent} onChange={e=>setMatchForm({...matchForm, opponent: e.target.value})} className="w-full border rounded-lg p-2" placeholder="e.g. John Champe High" /></div>
-                                        <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Location</label><select value={matchForm.location} onChange={e=>setMatchForm({...matchForm, location: e.target.value})} className="w-full border rounded-lg p-2"><option>Home</option><option>Away</option></select></div>
-                                        <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Match Time</label><input type="text" required value={matchForm.time} onChange={e=>setMatchForm({...matchForm, time: e.target.value})} className="w-full border rounded-lg p-2" /></div>
-                                        <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Bus Time (Optional)</label><input type="text" value={matchForm.busTime} onChange={e=>setMatchForm({...matchForm, busTime: e.target.value})} className="w-full border rounded-lg p-2" placeholder="e.g. 2:45 PM" /></div>
-                                        <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Initial Status</label><select value={matchForm.status} onChange={e=>setMatchForm({...matchForm, status: e.target.value})} className="w-full border rounded-lg p-2"><option>Scheduled</option><option>Delayed</option><option>Canceled</option></select></div>
-                                        <div className="md:col-span-2"><button type="submit" className="w-full bg-black text-[#FFB81C] font-black py-3 rounded-lg hover:bg-gray-900 transition shadow-md border border-[#FFB81C]">Add to Schedule</button></div>
-                                    </form>
-                                </div>
-
-                                <div className="glass-card p-6">
-                                    <h3 className="font-black text-lg mb-4">Matches & Scorecards</h3>
-                                    <p className="text-xs text-gray-500 mb-4 bg-gray-100 p-2 rounded">Click "Edit Scorecard" to log individual line results. Team scores and player Win/Loss records will auto-update based on the scorecard!</p>
-                                    <div className="space-y-3">
-                                        {matches.slice().reverse().map(m => (
-                                            <div key={m.id} className="flex flex-col md:flex-row justify-between items-center p-4 bg-white border border-gray-200 rounded-lg gap-4 shadow-sm">
-                                                <div className="flex-1 w-full">
-                                                    <div className="font-black text-gray-800 text-lg">vs {m.opponent}</div>
-                                                    <div className="text-sm text-gray-500 flex gap-2 items-center">{m.date} • {m.result ? <span className="font-bold text-green-600">{m.result}</span> : "No Score"}</div>
-                                                </div>
-                                                
-                                                <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-                                                    <select value={m.status} onChange={(e) => handleUpdateMatchStatus(m.id, e.target.value)} className="border rounded px-2 py-2 text-sm bg-gray-50 focus:outline-none">
-                                                        <option>Scheduled</option><option>In Progress</option><option>Completed</option><option>Delayed</option><option>Canceled</option>
-                                                    </select>
-                                                    <button onClick={() => openScorecard(m)} className="bg-blue-100 text-blue-800 px-4 py-2 rounded font-bold hover:bg-blue-200 text-sm whitespace-nowrap border border-blue-200">
-                                                        {m.lines && m.lines.length > 0 ? '📝 Edit Scorecard' : '📝 Log Results'}
-                                                    </button>
-                                                    <button onClick={() => handleDeleteMatch(m.id)} className="bg-red-100 text-red-600 px-3 py-2 rounded font-bold hover:bg-red-200 text-sm">Del</button>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {activeTab === 'roster' && (
-                            <div className="space-y-6">
-                                <div className="glass-card p-6 border-t-4 border-blue-500">
-                                    <h3 className="font-black text-lg mb-2">Add Player</h3>
-                                    <p className="text-xs text-red-600 font-bold mb-4 bg-red-50 p-2 rounded inline-block">🔒 Privacy: Enter FULL name. Site will publicly truncate to First Name, Last Initial.</p>
-                                    <form onSubmit={handleAddPlayer} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Full Player Name</label><input type="text" required value={playerForm.name} onChange={e=>setPlayerForm({...playerForm, name: e.target.value})} className="w-full border rounded-lg p-2" placeholder="e.g. John Smith" /></div>
-                                        <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Grade</label><select value={playerForm.grade} onChange={e=>setPlayerForm({...playerForm, grade: e.target.value})} className="w-full border rounded-lg p-2"><option>9</option><option>10</option><option>11</option><option>12</option></select></div>
-                                        <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Flight</label><select value={playerForm.flight} onChange={e=>setPlayerForm({...playerForm, flight: e.target.value})} className="w-full border rounded-lg p-2"><option>Singles</option><option>Doubles</option></select></div>
-                                        <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Line Position</label><input type="number" min="1" max="6" required value={playerForm.position} onChange={e=>setPlayerForm({...playerForm, position: e.target.value})} className="w-full border rounded-lg p-2" /></div>
-                                        <div className="md:col-span-2"><button type="submit" className="w-full bg-blue-600 text-white font-black py-3 rounded-lg hover:bg-blue-700 transition shadow-md">Add Player</button></div>
-                                    </form>
-                                </div>
-
-                                <div className="glass-card p-6">
-                                    <h3 className="font-black text-lg mb-4">Current Roster</h3>
-                                    <p className="text-xs text-gray-500 mb-4 bg-gray-100 p-2 rounded">Win/Loss records are now calculated automatically from Match Scorecards.</p>
-                                    <div className="space-y-2">
-                                        {rosterWithStats.map(p => (
-                                            <div key={p.id} className="flex justify-between items-center p-3 bg-gray-50 border border-gray-200 rounded-lg gap-2">
-                                                <div>
-                                                    <div className="font-bold text-gray-800">{p.name} <span className="text-xs font-normal text-gray-400 italic">(Displays as {formatPrivacyName(p.name)})</span></div>
-                                                    <div className="text-xs text-gray-500">{p.flight} {p.position} • Record: {p.wins}-{p.losses}</div>
-                                                </div>
-                                                <button onClick={() => handleDeletePlayer(p.id)} className="bg-red-100 text-red-600 px-3 py-2 rounded font-bold hover:bg-red-200 text-sm">Remove</button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* FULL SCORECARD MODAL */}
-                        {editingMatchId && (
-                            <div className="modal-overlay" onClick={() => setEditingMatchId(null)}>
-                                <div className="modal-content max-w-4xl" onClick={e => e.stopPropagation()}>
-                                    <div className="flex justify-between items-center mb-4 border-b pb-3">
-                                        <h3 className="text-2xl font-black flex items-center gap-2">USTA Official Scorecard</h3>
-                                        <button onClick={() => setEditingMatchId(null)} className="text-gray-400 hover:text-gray-800 font-bold text-xl">✕</button>
-                                    </div>
-                                    <p className="text-sm text-gray-500 mb-4">Complete lines to auto-calculate the final score. Any line without a winner is excluded.</p>
-                                    
-                                    <div className="overflow-x-auto custom-scrollbar pb-4">
-                                        <table className="w-full text-sm text-left whitespace-nowrap">
-                                            <thead className="bg-black text-[#FFB81C] uppercase text-xs">
-                                                <tr>
-                                                    <th className="p-2 rounded-tl-lg">Line</th>
-                                                    <th className="p-2">Home Player(s)</th>
-                                                    <th className="p-2">Away Player(s)</th>
-                                                    <th className="p-2">Set Scores</th>
-                                                    <th className="p-2 rounded-tr-lg">Winner</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-gray-200">
-                                                {scorecardData.map((line, idx) => (
-                                                    <tr key={idx} className="hover:bg-gray-50">
-                                                        <td className="p-2 font-bold text-gray-700 bg-gray-100/50">{line.id}</td>
-                                                        <td className="p-2 flex flex-col gap-1">
-                                                            <select value={line.playerIds[0] || ''} onChange={(e) => updateLine(idx, 'player1', e.target.value)} className="border p-1 rounded text-xs">
-                                                                <option value="">Select Roster...</option>
-                                                                {roster.map(r => <option key={r.id} value={r.id}>{r.name} ({r.flight.charAt(0)}{r.position})</option>)}
-                                                            </select>
-                                                            {line.type === 'Doubles' && (
-                                                                <select value={line.playerIds[1] || ''} onChange={(e) => updateLine(idx, 'player2', e.target.value)} className="border p-1 rounded text-xs mt-1">
-                                                                    <option value="">Select Partner...</option>
-                                                                    {roster.map(r => <option key={r.id} value={r.id}>{r.name} ({r.flight.charAt(0)}{r.position})</option>)}
-                                                                </select>
-                                                            )}
-                                                        </td>
-                                                        <td className="p-2">
-                                                            <input type="text" value={line.opponentName} onChange={(e) => updateLine(idx, 'opponentName', e.target.value)} className="border p-1 rounded w-full text-xs" placeholder="Opponent Name(s)" />
-                                                        </td>
-                                                        <td className="p-2">
-                                                            <input type="text" value={line.score} onChange={(e) => updateLine(idx, 'score', e.target.value)} className="border p-1 rounded w-24 text-xs font-mono" placeholder="e.g. 6-4, 6-2" />
-                                                        </td>
-                                                        <td className="p-2">
-                                                            <select value={line.winner} onChange={(e) => updateLine(idx, 'winner', e.target.value)} className={`border p-1 rounded text-xs font-bold ${line.winner==='Home'?'bg-yellow-100 text-[#b47e00]':line.winner==='Away'?'bg-gray-200':''}`}>
-                                                                <option value="">- TBD -</option>
-                                                                <option value="Home">Home (W)</option>
-                                                                <option value="Away">Away (L)</option>
-                                                            </select>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                    <div className="mt-6 pt-4 border-t flex justify-end gap-3">
-                                        <button onClick={() => setEditingMatchId(null)} className="px-6 py-3 font-bold text-gray-500 hover:bg-gray-100 rounded-lg">Cancel</button>
-                                        <button onClick={saveScorecard} className="px-6 py-3 bg-green-600 text-white font-black rounded-lg hover:bg-green-700 shadow-md">Save & Auto-Calculate Score</button>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                    </div>
-                );
-            };
-
             if (loading) {
                 return <div className="min-h-screen flex items-center justify-center bg-gray-50"><div className="animate-pulse flex flex-col items-center"><Icons.TennisBall /><p className="mt-4 font-bold text-gray-400 tracking-widest uppercase">Loading Court...</p></div></div>;
             }
@@ -1122,11 +1094,11 @@
 
                     {/* Main Content Area */}
                     <main className="flex-1 max-w-4xl w-full mx-auto p-4 md:p-6 pb-24">
-                        {view === 'home' && <HomeView />}
-                        {view === 'schedule' && <ScheduleView />}
-                        {view === 'roster' && <RosterView />}
+                        {view === 'home' && <HomeView announcements={announcements} teamWins={teamWins} teamLosses={teamLosses} pastMatches={pastMatches} nextMatch={nextMatch} setView={setView} expandedMatch={expandedMatch} setExpandedMatch={setExpandedMatch} roster={roster} />}
+                        {view === 'schedule' && <ScheduleView upcomingMatches={upcomingMatches} pastMatches={pastMatches} expandedMatch={expandedMatch} setExpandedMatch={setExpandedMatch} roster={roster} />}
+                        {view === 'roster' && <RosterView rosterWithStats={rosterWithStats} />}
                         {view === 'resources' && <ResourcesView />}
-                        {view === 'admin' && isAdmin && <AdminDashboard />}
+                        {view === 'admin' && isAdmin && <AdminDashboard user={user} db={db} appId={appId} matches={matches} roster={roster} rosterWithStats={rosterWithStats} announcements={announcements} challenges={challenges} today={today} />}
                     </main>
 
                     {/* Footer & Hidden Admin Toggle */}
@@ -1144,7 +1116,29 @@
                     </footer>
 
                     {/* Modals */}
-                    {showPinModal && <PinModal />}
+                    {showPinModal && (
+                        <div className="modal-overlay" onClick={() => setShowPinModal(false)}>
+                            <div className="modal-content" onClick={e => e.stopPropagation()}>
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="text-xl font-bold flex items-center gap-2"><Icons.Lock /> Coach Portal Access</h3>
+                                    <button onClick={() => setShowPinModal(false)} className="text-gray-400 hover:text-gray-700">✕</button>
+                                </div>
+                                <p className="text-sm text-gray-500 mb-4">Enter the coach PIN to manage schedule and roster stats.</p>
+                                <form onSubmit={handlePinSubmit}>
+                                    <input 
+                                        type="password" 
+                                        value={pinInput} 
+                                        onChange={(e) => setPinInput(e.target.value)}
+                                        placeholder="Enter PIN"
+                                        className="w-full border border-gray-300 rounded-lg px-4 py-3 mb-2 text-center text-xl tracking-widest focus:outline-none focus:border-yellow-500 focus:ring-2 focus:ring-yellow-100"
+                                        autoFocus
+                                    />
+                                    {pinError && <p className="text-red-500 text-sm mb-4 text-center">{pinError}</p>}
+                                    <button type="submit" className="w-full bg-black text-white font-bold py-3 rounded-lg hover:bg-gray-900 transition border border-yellow-500">Unlock</button>
+                                </form>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         }
