@@ -118,11 +118,29 @@
             return `${parts[0]} ${parts[parts.length - 1].charAt(0)}.`;
         };
 
-        // MAP LINK GENERATOR
-        const getMapLink = (location) => {
-            if (!location) return "#";
-            const query = location.toLowerCase() === 'home' ? 'Freedom High School South Riding VA' : `${location} High School`;
+        // MAP LINK & DISPLAY GENERATORS
+        const getMapLink = (match) => {
+            if (!match) return "#";
+            let query = match.location || '';
+            // Handle legacy "Home" / "Away" dropdown values
+            if (query.toLowerCase() === 'home') {
+                query = 'Freedom High School South Riding VA';
+            } else if (query.toLowerCase() === 'away') {
+                query = `${match.opponent} High School Virginia`;
+            } else {
+                // Add Virginia to the query to make Google Maps more accurate if not already there
+                if (!query.toLowerCase().includes('va') && !query.toLowerCase().includes('virginia')) {
+                    query += ', Virginia';
+                }
+            }
             return `https://maps.google.com/?q=${encodeURIComponent(query)}`;
+        };
+
+        const getDisplayLocation = (match) => {
+            if (!match) return "TBD";
+            if (match.location === 'Home') return 'Freedom High School (Home)';
+            if (match.location === 'Away') return `${match.opponent} High School (Away)`;
+            return match.location;
         };
 
         // STATUS BADGE COMPONENT
@@ -225,7 +243,7 @@
                                 <div className="flex items-center gap-2"><span>⏰</span> {nextMatch.time}</div>
                                 <div className="flex items-center gap-2">
                                     <Icons.MapPin />
-                                    <a href={getMapLink(nextMatch.location)} target="_blank" rel="noopener noreferrer" className="hover:text-[#FFB81C] hover:underline transition-colors">{nextMatch.location}</a>
+                                    <a href={getMapLink(nextMatch)} target="_blank" rel="noopener noreferrer" className="hover:text-[#FFB81C] hover:underline transition-colors">{getDisplayLocation(nextMatch)}</a>
                                 </div>
                             </div>
                             {nextMatch.busTime && (
@@ -306,7 +324,7 @@
                                         <span>• {match.time}</span>
                                         <span className="flex items-center gap-1">
                                             • <Icons.MapPin />
-                                            <a href={getMapLink(match.location)} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{match.location}</a>
+                                            <a href={getMapLink(match)} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{getDisplayLocation(match)}</a>
                                         </span>
                                     </div>
                                     {match.busTime && (
@@ -336,7 +354,7 @@
                                             <div>
                                                 <div className="font-bold text-gray-800 text-lg">vs. {match.opponent}</div>
                                                 <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                                                    {new Date(match.date).toLocaleDateString()} • <a href={getMapLink(match.location)} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-blue-600 flex items-center gap-1"><Icons.MapPin /> {match.location}</a>
+                                                    {new Date(match.date).toLocaleDateString()} • <a href={getMapLink(match)} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-blue-600 flex items-center gap-1"><Icons.MapPin /> {getDisplayLocation(match)}</a>
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-3">
@@ -466,7 +484,7 @@
         );
 
         const AdminDashboard = ({ user, db, appId, matches, roster, rosterWithStats, announcements, challenges, today }) => {
-            const [matchForm, setMatchForm] = React.useState({ date: '', opponent: '', location: 'Home', time: '4:00 PM', busTime: '', status: 'Scheduled' });
+            const [matchForm, setMatchForm] = React.useState({ date: '', opponent: '', location: 'Freedom High School', time: '4:00 PM', busTime: '', status: 'Scheduled' });
             const [playerForm, setPlayerForm] = React.useState({ name: '', grade: '12', flight: 'Singles', position: 1 });
             const [announcementForm, setAnnouncementForm] = React.useState('');
             const [challengeForm, setChallengeForm] = React.useState({ date: today, challengerId: '', defenderId: '', score: '', winnerId: '' });
@@ -493,7 +511,7 @@
                         result: '', 
                         lines: []
                     });
-                    setMatchForm({ date: '', opponent: '', location: 'Home', time: '4:00 PM', busTime: '', status: 'Scheduled' });
+                    setMatchForm({ date: '', opponent: '', location: 'Freedom High School', time: '4:00 PM', busTime: '', status: 'Scheduled' });
                     alert("Match added!");
                 } catch (err) { 
                     console.error(err); 
@@ -591,6 +609,14 @@
                     setAnnouncementForm('');
                     alert("Announcement posted to home page!");
                 } catch (err) { console.error(err); checkPermissionsError(err); }
+            };
+
+            const handleDeleteAnnouncement = async (id) => {
+                if(!confirm("Delete this announcement? It will be removed immediately.")) return;
+                if(!user || !db) return;
+                try {
+                    await db.collection(`artifacts/${appId}/public/data/announcements`).doc(id).delete();
+                } catch (err) { checkPermissionsError(err); }
             };
 
             const handleLogChallenge = async (e) => {
@@ -748,7 +774,7 @@
                     {activeTab === 'announce' && (
                         <div className="glass-card p-6 border-t-4 border-[#FFB81C]">
                             <h3 className="font-black text-lg mb-2">Post Live Announcement</h3>
-                            <p className="text-xs text-gray-500 mb-4">This will appear at the very top of the Home page for all visitors. Use for rainouts, delays, etc.</p>
+                            <p className="text-xs text-gray-500 mb-4">The newest announcement appears at the very top of the Home page for all visitors. Use for rainouts, delays, etc.</p>
                             <form onSubmit={handlePostAnnouncement}>
                                 <textarea 
                                     required 
@@ -759,6 +785,23 @@
                                 />
                                 <button type="submit" className="bg-black text-[#FFB81C] font-black px-6 py-3 rounded-lg hover:bg-gray-900 transition shadow-md border border-[#FFB81C]">Publish to Home Page</button>
                             </form>
+
+                            <h4 className="font-bold text-gray-700 uppercase tracking-widest text-xs mb-2 mt-8 border-t pt-6">Announcement History</h4>
+                            <div className="space-y-2">
+                                {announcements.length === 0 && <p className="text-sm text-gray-400 italic">No announcements posted yet.</p>}
+                                {announcements.map((a, i) => (
+                                    <div key={a.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-3 bg-white border border-gray-200 rounded shadow-sm gap-4">
+                                        <div className="flex-1 w-full">
+                                            <div className="text-xs text-gray-500 mb-1 flex items-center gap-2">
+                                                {new Date(a.timestamp).toLocaleString()}
+                                                {i === 0 && <span className="bg-yellow-100 text-yellow-800 text-[9px] font-black uppercase px-2 py-0.5 rounded">Live on Home</span>}
+                                            </div>
+                                            <div className="text-sm text-gray-800 whitespace-pre-wrap">{a.text}</div>
+                                        </div>
+                                        <button onClick={() => handleDeleteAnnouncement(a.id)} className="text-xs font-bold text-red-500 hover:text-red-700 hover:underline px-3 py-2 bg-red-50 rounded whitespace-nowrap self-end sm:self-auto">Delete</button>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     )}
 
@@ -769,7 +812,7 @@
                                 <form onSubmit={handleAddMatch} className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Date</label><input type="date" required value={matchForm.date} onChange={e=>setMatchForm({...matchForm, date: e.target.value})} className="w-full border rounded-lg p-2" /></div>
                                     <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Opponent</label><input type="text" required value={matchForm.opponent} onChange={e=>setMatchForm({...matchForm, opponent: e.target.value})} className="w-full border rounded-lg p-2" placeholder="e.g. John Champe High" /></div>
-                                    <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Location</label><select value={matchForm.location} onChange={e=>setMatchForm({...matchForm, location: e.target.value})} className="w-full border rounded-lg p-2"><option>Home</option><option>Away</option></select></div>
+                                    <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Location / Venue</label><input type="text" required value={matchForm.location} onChange={e=>setMatchForm({...matchForm, location: e.target.value})} className="w-full border rounded-lg p-2" placeholder="e.g. Freedom High School" /></div>
                                     <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Match Time</label><input type="text" required value={matchForm.time} onChange={e=>setMatchForm({...matchForm, time: e.target.value})} className="w-full border rounded-lg p-2" /></div>
                                     <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Bus Time (Optional)</label><input type="text" value={matchForm.busTime} onChange={e=>setMatchForm({...matchForm, busTime: e.target.value})} className="w-full border rounded-lg p-2" placeholder="e.g. 2:45 PM" /></div>
                                     <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Initial Status</label><select value={matchForm.status} onChange={e=>setMatchForm({...matchForm, status: e.target.value})} className="w-full border rounded-lg p-2"><option>Scheduled</option><option>Delayed</option><option>Canceled</option></select></div>
