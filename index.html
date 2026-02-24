@@ -1,1 +1,1136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Freedom Varsity Tennis</title>
+    
+    <!-- iOS Web App Support -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Freedom Tennis">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
+    <style>
+        :root { 
+            --gold: #FFB81C; 
+            --black: #000000;
+            --dark-gray: #18181b; 
+            --light-bg: #f4f4f5;
+        }
+        body { background-color: var(--light-bg); color: var(--dark-gray); font-family: system-ui, -apple-system, sans-serif; -webkit-print-color-adjust: exact; }
+        
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            border-radius: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+        }
+
+        .header-gradient {
+            background: linear-gradient(135deg, var(--black) 0%, #27272a 100%);
+        }
+
+        .nav-item {
+            transition: all 0.2s;
+            position: relative;
+        }
+        .nav-item::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 3px;
+            background-color: var(--gold);
+            transition: width 0.2s ease;
+            border-radius: 2px;
+        }
+        .nav-item.active::after { width: 100%; }
+        .nav-item.active { color: var(--black); font-weight: 900; }
+        .nav-item:not(.active) { color: #a1a1aa; }
+        .nav-item:hover:not(.active) { color: #52525b; }
+
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(4px);
+            z-index: 100;
+            display: flex; align-items: center; justify-content: center;
+            animation: fadeIn 0.2s ease-out;
+            padding: 10px;
+        }
+        .modal-content {
+            background: white; padding: 24px; border-radius: 20px;
+            width: 100%; max-width: 600px; max-height: 90vh; overflow-y: auto;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        
+        .animate-slide-up { animation: slideUp 0.3s ease-out forwards; }
+        
+        /* Custom Scrollbar for scorecards */
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #a1a1aa; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // --- ICONS ---
+        const Icons = {
+            Home: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
+            Calendar: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>,
+            Users: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+            Info: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>,
+            Lock: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>,
+            Unlock: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>,
+            Settings: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>,
+            TennisBall: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[#FFB81C]"><circle cx="12" cy="12" r="10"/><path d="M6.8 4.2c2.4 2.4 3.2 6.1 2 9.2"/><path d="M17.2 19.8c-2.4-2.4-3.2-6.1-2-9.2"/></svg>,
+            Alert: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
+            MapPin: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>,
+            ChevronDown: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>,
+            ChevronUp: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>,
+            Activity: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>,
+            Swords: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"></polyline><line x1="13" y1="19" x2="19" y2="13"></line><line x1="16" y1="16" x2="20" y2="20"></line><line x1="19" y1="21" x2="21" y2="19"></line><polyline points="14.5 6.5 18 3 21 3 21 6 17.5 9.5"></polyline><line x1="5" y1="14" x2="9" y2="18"></line><line x1="7" y1="17" x2="4" y2="20"></line><line x1="3" y1="19" x2="5" y2="21"></line></svg>
+        };
+
+        // PRIVACY FILTER: Formats "John Smith" to "John S."
+        const formatPrivacyName = (fullName) => {
+            if (!fullName) return "TBD";
+            const parts = fullName.trim().split(" ");
+            if (parts.length === 1) return parts[0];
+            return `${parts[0]} ${parts[parts.length - 1].charAt(0)}.`;
+        };
+
+        // MAP LINK GENERATOR
+        const getMapLink = (location) => {
+            if (!location) return "#";
+            const query = location.toLowerCase() === 'home' ? 'Freedom High School South Riding VA' : `${location} High School`;
+            return `https://maps.google.com/?q=${encodeURIComponent(query)}`;
+        };
+
+        // STATUS BADGE COMPONENT
+        const StatusBadge = ({ status }) => {
+            let colorStr = "bg-gray-100 text-gray-800 border-gray-200";
+            if (status === 'Completed') colorStr = "bg-green-100 text-green-800 border-green-200";
+            else if (status === 'Scheduled') colorStr = "bg-blue-100 text-blue-800 border-blue-200";
+            else if (status === 'Canceled') colorStr = "bg-red-100 text-red-800 border-red-200";
+            else if (status === 'Delayed') colorStr = "bg-yellow-100 text-yellow-800 border-yellow-200";
+            
+            return <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded border ${colorStr}`}>{status}</span>;
+        };
+
+        // DEFAULT SCORECARD GENERATOR
+        const generateDefaultLines = () => {
+            return [
+                ...[1,2,3,4,5,6].map(i => ({ id: `S${i}`, type: 'Singles', pos: i, playerIds: [''], opponentName: '', score: '', winner: '' })),
+                ...[1,2,3].map(i => ({ id: `D${i}`, type: 'Doubles', pos: i, playerIds: ['',''], opponentName: '', score: '', winner: '' }))
+            ];
+        };
+
+        function App() {
+            // STATE
+            const [user, setUser] = React.useState(null);
+            const [db, setDb] = React.useState(null);
+            const [appId, setAppId] = React.useState('freedom-tennis-default');
+            const [view, setView] = React.useState('home');
+            
+            const [matches, setMatches] = React.useState([]);
+            const [roster, setRoster] = React.useState([]);
+            const [announcements, setAnnouncements] = React.useState([]);
+            const [challenges, setChallenges] = React.useState([]);
+            const [loading, setLoading] = React.useState(true);
+            const [expandedMatch, setExpandedMatch] = React.useState(null);
+            
+            // ADMIN STATE
+            const [isAdmin, setIsAdmin] = React.useState(false);
+            const [showPinModal, setShowPinModal] = React.useState(false);
+            const [pinInput, setPinInput] = React.useState('');
+            const [pinError, setPinError] = React.useState('');
+            const COACH_PIN = "1234";
+
+            // FIREBASE INIT & AUTH
+            React.useEffect(() => {
+                const initFirebase = async () => {
+                    try {
+                        let firebaseApp;
+                        if (!firebase.apps.length) {
+                            const config = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { 
+                                apiKey: "mock-key", projectId: "mock-project" 
+                            };
+                            firebaseApp = firebase.initializeApp(config);
+                        } else {
+                            firebaseApp = firebase.app();
+                        }
+                        
+                        const currentAppId = typeof __app_id !== 'undefined' ? __app_id : 'freedom-tennis-default';
+                        setAppId(currentAppId);
+                        setDb(firebase.firestore());
+
+                        // Auth FIRST
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await firebase.auth().signInWithCustomToken(__initial_auth_token);
+                        } else {
+                            await firebase.auth().signInAnonymously();
+                        }
+                    } catch (e) {
+                        console.error("Firebase Initialization Error:", e);
+                        setLoading(false);
+                    }
+                };
+                
+                initFirebase();
+                const unsubscribe = firebase.auth().onAuthStateChanged(setUser);
+                return () => unsubscribe();
+            }, []);
+
+            // FIREBASE DATA FETCHING
+            React.useEffect(() => {
+                if (!user || !db) return;
+
+                const matchesUnsub = db.collection(`artifacts/${appId}/public/data/matches`)
+                    .onSnapshot((snap) => {
+                        const m = [];
+                        snap.forEach(doc => m.push({ id: doc.id, ...doc.data() }));
+                        m.sort((a, b) => new Date(a.date) - new Date(b.date));
+                        setMatches(m);
+                        setLoading(false);
+                    }, (err) => {
+                        console.error("Error fetching matches", err);
+                        setLoading(false);
+                    });
+
+                const rosterUnsub = db.collection(`artifacts/${appId}/public/data/roster`)
+                    .onSnapshot((snap) => {
+                        const r = [];
+                        snap.forEach(doc => r.push({ id: doc.id, ...doc.data() }));
+                        r.sort((a, b) => {
+                            if (a.flight !== b.flight) return a.flight.localeCompare(b.flight);
+                            return a.position - b.position;
+                        });
+                        setRoster(r);
+                    });
+
+                const announcementsUnsub = db.collection(`artifacts/${appId}/public/data/announcements`)
+                    .onSnapshot((snap) => {
+                        const a = [];
+                        snap.forEach(doc => a.push({ id: doc.id, ...doc.data() }));
+                        a.sort((x, y) => y.timestamp - x.timestamp); 
+                        setAnnouncements(a);
+                    });
+
+                const challengesUnsub = db.collection(`artifacts/${appId}/public/data/challenges`)
+                    .onSnapshot((snap) => {
+                        const c = [];
+                        snap.forEach(doc => c.push({ id: doc.id, ...doc.data() }));
+                        c.sort((x, y) => y.timestamp - x.timestamp); 
+                        setChallenges(c);
+                    });
+
+                return () => { matchesUnsub(); rosterUnsub(); announcementsUnsub(); challengesUnsub(); };
+            }, [user, db, appId]);
+
+            // DERIVED DATA & AUTO-CALCULATED STATS
+            const today = new Date().toISOString().split('T')[0];
+            const pastMatches = matches.filter(m => m.date < today || m.status === 'Completed');
+            const upcomingMatches = matches.filter(m => m.date >= today && m.status !== 'Completed');
+            const nextMatch = upcomingMatches.length > 0 ? upcomingMatches[0] : null;
+            
+            let teamWins = 0, teamLosses = 0;
+            pastMatches.forEach(m => {
+                if (m.result && m.result.toUpperCase().startsWith('W')) teamWins++;
+                if (m.result && m.result.toUpperCase().startsWith('L')) teamLosses++;
+            });
+
+            // Auto-calculate player records based on scorecards
+            const getPlayerStats = (playerId) => {
+                let wins = 0, losses = 0, singlesWins = 0, singlesLosses = 0, doublesWins = 0, doublesLosses = 0;
+                matches.forEach(m => {
+                    if (m.status === 'Completed' && m.lines) {
+                        m.lines.forEach(line => {
+                            if (line.playerIds && line.playerIds.includes(playerId)) {
+                                if (line.winner === 'Home') {
+                                    wins++;
+                                    if (line.type === 'Singles') singlesWins++;
+                                    else if (line.type === 'Doubles') doublesWins++;
+                                }
+                                else if (line.winner === 'Away') {
+                                    losses++;
+                                    if (line.type === 'Singles') singlesLosses++;
+                                    else if (line.type === 'Doubles') doublesLosses++;
+                                }
+                            }
+                        });
+                    }
+                });
+                return { wins, losses, singlesWins, singlesLosses, doublesWins, doublesLosses };
+            };
+
+            const rosterWithStats = roster.map(p => ({ ...p, ...getPlayerStats(p.id) }));
+
+            // ADMIN ACTIONS
+            const handlePinSubmit = (e) => {
+                e.preventDefault();
+                if (pinInput === COACH_PIN) {
+                    setIsAdmin(true);
+                    setShowPinModal(false);
+                    setPinInput('');
+                    setPinError('');
+                    setView('admin');
+                } else {
+                    setPinError('Incorrect PIN');
+                }
+            };
+
+            const toggleAdminStatus = () => {
+                if (isAdmin) {
+                    setIsAdmin(false);
+                    setView('home');
+                } else {
+                    setShowPinModal(true);
+                }
+            };
+
+            // --- UI COMPONENTS ---
+
+            const PinModal = () => (
+                <div className="modal-overlay" onClick={() => setShowPinModal(false)}>
+                    <div className="modal-content" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-xl font-bold flex items-center gap-2"><Icons.Lock /> Coach Portal Access</h3>
+                            <button onClick={() => setShowPinModal(false)} className="text-gray-400 hover:text-gray-700">✕</button>
+                        </div>
+                        <p className="text-sm text-gray-500 mb-4">Enter the coach PIN to manage schedule and roster stats.</p>
+                        <form onSubmit={handlePinSubmit}>
+                            <input 
+                                type="password" 
+                                value={pinInput} 
+                                onChange={(e) => setPinInput(e.target.value)}
+                                placeholder="Enter PIN"
+                                className="w-full border border-gray-300 rounded-lg px-4 py-3 mb-2 text-center text-xl tracking-widest focus:outline-none focus:border-yellow-500 focus:ring-2 focus:ring-yellow-100"
+                                autoFocus
+                            />
+                            {pinError && <p className="text-red-500 text-sm mb-4 text-center">{pinError}</p>}
+                            <button type="submit" className="w-full bg-black text-white font-bold py-3 rounded-lg hover:bg-gray-900 transition border border-yellow-500">Unlock</button>
+                        </form>
+                    </div>
+                </div>
+            );
+
+            // Detailed Scorecard UI Component (Used in Home & Schedule)
+            const ScorecardView = ({ match }) => {
+                if (!match.lines) return <div className="text-center p-4 text-sm text-gray-500 italic">Detailed scorecard not available for this match.</div>;
+                
+                const getPlayerNames = (ids) => {
+                    if (!ids || ids.length === 0) return "TBD";
+                    const names = ids.map(id => {
+                        const player = roster.find(r => r.id === id);
+                        return player ? formatPrivacyName(player.name) : "TBD";
+                    });
+                    return names.join(" & ");
+                };
+
+                return (
+                    <div className="mt-4 border-t border-gray-200 pt-4 overflow-x-auto custom-scrollbar pb-2">
+                        <table className="w-full text-xs text-left whitespace-nowrap">
+                            <thead className="bg-gray-100 text-gray-600 uppercase">
+                                <tr>
+                                    <th className="px-3 py-2 rounded-tl-lg">Line</th>
+                                    <th className="px-3 py-2">Home (Freedom)</th>
+                                    <th className="px-3 py-2">Visitor ({match.opponent})</th>
+                                    <th className="px-3 py-2">Score</th>
+                                    <th className="px-3 py-2 rounded-tr-lg">Winner</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {match.lines.map((line, idx) => (
+                                    <tr key={idx} className={line.winner === 'Home' ? 'bg-yellow-50/50' : ''}>
+                                        <td className="px-3 py-2 font-bold text-gray-700">{line.id}</td>
+                                        <td className="px-3 py-2 font-medium">{getPlayerNames(line.playerIds)}</td>
+                                        <td className="px-3 py-2 text-gray-600">{line.opponentName || "-"}</td>
+                                        <td className="px-3 py-2 font-mono">{line.score || "-"}</td>
+                                        <td className={`px-3 py-2 font-bold ${line.winner === 'Home' ? 'text-[#b47e00]' : line.winner === 'Away' ? 'text-gray-800' : 'text-gray-400'}`}>
+                                            {line.winner || "-"}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                );
+            };
+
+            const HomeView = () => (
+                <div className="space-y-6 animate-slide-up">
+                    
+                    {/* Live Announcements */}
+                    {announcements.length > 0 && (
+                        <div className="bg-yellow-100 border-l-4 border-[#FFB81C] p-4 rounded-r-lg shadow-sm">
+                            <div className="flex items-center gap-2 text-yellow-800 font-bold mb-1">
+                                <Icons.Alert /> <span>Latest Coach Announcement</span>
+                            </div>
+                            <p className="text-yellow-900 text-sm">{announcements[0].text}</p>
+                            <p className="text-yellow-700 text-xs mt-2">{new Date(announcements[0].timestamp).toLocaleDateString()} @ {new Date(announcements[0].timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                        </div>
+                    )}
+
+                    {/* Hero Stats */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="glass-card p-6 flex flex-col items-center justify-center text-center">
+                            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-1">Season Record</h3>
+                            <div className="text-5xl font-black text-black">{teamWins} - {teamLosses}</div>
+                        </div>
+                        <div className="glass-card p-6 flex flex-col items-center justify-center text-center">
+                            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-1">Matches Played</h3>
+                            <div className="text-5xl font-black text-black">{pastMatches.length}</div>
+                        </div>
+                    </div>
+
+                    {/* Next Match Highlight */}
+                    {nextMatch ? (
+                        <div className="bg-black text-white rounded-2xl p-6 relative overflow-hidden shadow-xl border border-[#FFB81C]/30">
+                            <div className="absolute -right-6 -top-6 opacity-10 transform rotate-12 scale-150"><Icons.TennisBall /></div>
+                            <div className="relative z-10">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className="inline-block bg-[#FFB81C] text-black text-xs font-black uppercase px-3 py-1 rounded-full">Next Up</div>
+                                    <StatusBadge status={nextMatch.status} />
+                                </div>
+                                <h2 className="text-3xl font-black mb-2">vs. {nextMatch.opponent}</h2>
+                                <div className="flex flex-col sm:flex-row gap-4 text-gray-300 font-medium">
+                                    <div className="flex items-center gap-2"><span>📅</span> {new Date(nextMatch.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</div>
+                                    <div className="flex items-center gap-2"><span>⏰</span> {nextMatch.time}</div>
+                                    <div className="flex items-center gap-2">
+                                        <Icons.MapPin />
+                                        <a href={getMapLink(nextMatch.location)} target="_blank" rel="noopener noreferrer" className="hover:text-[#FFB81C] hover:underline transition-colors">{nextMatch.location}</a>
+                                    </div>
+                                </div>
+                                {nextMatch.busTime && (
+                                    <div className="mt-4 pt-3 border-t border-gray-800 text-sm text-[#FFB81C] font-bold">
+                                        🚌 Early Dismissal / Bus Departs: {nextMatch.busTime}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="bg-gray-100 border-2 border-dashed border-gray-300 rounded-2xl p-8 text-center">
+                            <div className="text-gray-400 mb-2 flex justify-center"><Icons.Calendar /></div>
+                            <h3 className="text-lg font-bold text-gray-700">No Upcoming Matches</h3>
+                            <p className="text-gray-500 text-sm">The schedule is currently clear.</p>
+                        </div>
+                    )}
+
+                    {/* Recent Results */}
+                    {pastMatches.length > 0 && (
+                        <div>
+                            <div className="flex justify-between items-end mb-4">
+                                <h2 className="text-xl font-bold text-gray-800">Recent Results</h2>
+                                <button onClick={() => setView('schedule')} className="text-sm text-yellow-600 font-semibold hover:underline">View All</button>
+                            </div>
+                            <div className="space-y-3">
+                                {pastMatches.slice().reverse().slice(0, 3).map(match => {
+                                    const isWin = match.result && match.result.toUpperCase().startsWith('W');
+                                    const isExpanded = expandedMatch === match.id;
+                                    return (
+                                        <div key={match.id} className="glass-card p-4 transition-all">
+                                            <div 
+                                                className="flex items-center justify-between cursor-pointer"
+                                                onClick={() => setExpandedMatch(isExpanded ? null : match.id)}
+                                            >
+                                                <div>
+                                                    <div className="text-sm text-gray-500 mb-1 flex items-center gap-2">
+                                                        {new Date(match.date).toLocaleDateString()} 
+                                                        {match.status === 'Completed' ? null : <StatusBadge status={match.status} />}
+                                                    </div>
+                                                    <div className="font-bold text-gray-800 text-lg">vs. {match.opponent}</div>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    {match.status === 'Completed' && (
+                                                        <div className={`px-4 py-2 rounded-lg font-black text-lg border ${isWin ? 'bg-green-100 text-green-800 border-green-200' : 'bg-gray-100 text-gray-800 border-gray-200'}`}>
+                                                            {match.result}
+                                                        </div>
+                                                    )}
+                                                    <div className="text-gray-400 hover:text-gray-800 transition-colors">
+                                                        {isExpanded ? <Icons.ChevronUp /> : <Icons.ChevronDown />}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {isExpanded && <ScorecardView match={match} />}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+
+            const ScheduleView = () => (
+                <div className="animate-slide-up space-y-6">
+                    <h2 className="text-2xl font-black text-gray-800 mb-4 border-b border-gray-200 pb-2">Season Schedule</h2>
+                    
+                    {upcomingMatches.length > 0 && (
+                        <div className="mb-8">
+                            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-3">Upcoming</h3>
+                            <div className="space-y-3">
+                                {upcomingMatches.map(match => (
+                                    <div key={match.id} className="glass-card p-4 border-l-4 border-[#FFB81C]">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div className="font-black text-lg text-gray-800">vs. {match.opponent}</div>
+                                            <StatusBadge status={match.status} />
+                                        </div>
+                                        <div className="text-sm text-gray-600 flex flex-wrap gap-x-4 gap-y-2 font-medium items-center">
+                                            <span>{new Date(match.date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</span>
+                                            <span>• {match.time}</span>
+                                            <span className="flex items-center gap-1">
+                                                • <Icons.MapPin />
+                                                <a href={getMapLink(match.location)} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{match.location}</a>
+                                            </span>
+                                        </div>
+                                        {match.busTime && (
+                                            <div className="text-xs font-bold text-[#b47e00] mt-3 bg-yellow-50 inline-block px-2 py-1 rounded">
+                                                🚌 Bus: {match.busTime}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    <div>
+                        <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-3">Results</h3>
+                        {pastMatches.length > 0 ? (
+                            <div className="space-y-3">
+                                {pastMatches.slice().reverse().map(match => {
+                                    const isWin = match.result && match.result.toUpperCase().startsWith('W');
+                                    const isExpanded = expandedMatch === match.id;
+                                    return (
+                                        <div key={match.id} className={`glass-card p-4 border-l-4 ${isWin ? 'border-green-500' : 'border-gray-400'}`}>
+                                            <div 
+                                                className="flex items-center justify-between cursor-pointer"
+                                                onClick={() => setExpandedMatch(isExpanded ? null : match.id)}
+                                            >
+                                                <div>
+                                                    <div className="font-bold text-gray-800 text-lg">vs. {match.opponent}</div>
+                                                    <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                                                        {new Date(match.date).toLocaleDateString()} • <a href={getMapLink(match.location)} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-blue-600 flex items-center gap-1"><Icons.MapPin /> {match.location}</a>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    {match.status === 'Completed' ? (
+                                                        <div className="font-black text-xl text-gray-800">{match.result}</div>
+                                                    ) : (
+                                                        <StatusBadge status={match.status} />
+                                                    )}
+                                                    <div className="text-gray-400">
+                                                        {isExpanded ? <Icons.ChevronUp /> : <Icons.ChevronDown />}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {isExpanded && <ScorecardView match={match} />}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            <p className="text-gray-500 italic text-sm">No matches played yet.</p>
+                        )}
+                    </div>
+                </div>
+            );
+
+            const RosterView = () => {
+                const singlesPlayers = rosterWithStats.filter(p => p.flight === 'Singles');
+                const doublesPlayers = rosterWithStats.filter(p => p.flight === 'Doubles');
+
+                const PlayerCard = ({ player }) => (
+                    <div className="glass-card p-4 flex flex-col justify-between">
+                        <div className="flex justify-between items-start mb-4">
+                            <div>
+                                <h4 className="font-black text-lg text-gray-800 leading-tight">{formatPrivacyName(player.name)}</h4>
+                                <span className="text-xs font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded-md mt-2 inline-block">Grade {player.grade}</span>
+                            </div>
+                            <div className="w-8 h-8 rounded-full bg-black text-[#FFB81C] flex items-center justify-center font-black text-xs border border-[#FFB81C]/50 shadow-sm">
+                                {player.flight === 'Singles' ? `S${player.position}` : `D${player.position}`}
+                            </div>
+                        </div>
+                        <div className="flex justify-between items-end border-t border-gray-100 pt-3">
+                            <div className="text-xs text-gray-500 font-bold uppercase tracking-wider">Record</div>
+                            <div className="font-black text-lg text-gray-800">{player.wins} - {player.losses}</div>
+                        </div>
+                    </div>
+                );
+
+                return (
+                    <div className="animate-slide-up space-y-8">
+                        <div>
+                            <div className="flex justify-between items-center mb-2">
+                                <h2 className="text-2xl font-black text-gray-800 flex items-center gap-2">Team Roster & Stats</h2>
+                            </div>
+                            <p className="text-xs text-gray-500 italic mb-6 border-b border-gray-200 pb-4">* Last names hidden for privacy. Records auto-calculated from Match Scorecards.</p>
+                            
+                            {singlesPlayers.length > 0 && (
+                                <div className="mb-6">
+                                    <h3 className="text-sm font-bold text-black uppercase tracking-widest mb-3 bg-[#FFB81C] px-3 py-1 inline-block rounded-md">Singles Lineup</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {singlesPlayers.map(p => <PlayerCard key={p.id} player={p} />)}
+                                    </div>
+                                </div>
+                            )}
+
+                            {doublesPlayers.length > 0 && (
+                                <div>
+                                    <h3 className="text-sm font-bold text-black uppercase tracking-widest mb-3 bg-gray-200 border border-gray-300 px-3 py-1 inline-block rounded-md">Doubles Lineup</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {doublesPlayers.map(p => <PlayerCard key={p.id} player={p} />)}
+                                    </div>
+                                </div>
+                            )}
+
+                            {roster.length === 0 && (
+                                <div className="text-center p-8 bg-gray-50 rounded-2xl border border-dashed border-gray-300">
+                                    <p className="text-gray-500">Roster has not been published yet.</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            };
+
+            const ResourcesView = () => (
+                <div className="animate-slide-up space-y-6">
+                    <h2 className="text-2xl font-black text-gray-800 mb-2 border-b border-gray-200 pb-2">Parent & Player Resources</h2>
+                    <p className="text-sm text-gray-600 mb-6">Important forms and information for the current season.</p>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="glass-card p-6 border-l-4 border-red-500 hover:shadow-md transition cursor-pointer">
+                            <h3 className="font-black text-lg mb-2">Athletic Physical Forms</h3>
+                            <p className="text-xs text-gray-500 mb-4">Required by the state association before the first practice. Must be dated after May 1st.</p>
+                            <span className="text-sm font-bold text-red-600">Download PDF ➔</span>
+                        </div>
+                        
+                        <div className="glass-card p-6 border-l-4 border-blue-500 hover:shadow-md transition cursor-pointer">
+                            <h3 className="font-black text-lg mb-2">Team Handbook</h3>
+                            <p className="text-xs text-gray-500 mb-4">Contains coach philosophy, attendance expectations, and varsity lettering criteria.</p>
+                            <span className="text-sm font-bold text-blue-600">View Rules ➔</span>
+                        </div>
+
+                        <div className="glass-card p-6 border-l-4 border-[#FFB81C] hover:shadow-md transition cursor-pointer">
+                            <h3 className="font-black text-lg mb-2">Match Snack Schedule</h3>
+                            <p className="text-xs text-gray-500 mb-4">View which parents are assigned to bring water and snacks for home and away matches.</p>
+                            <span className="text-sm font-bold text-yellow-600">View Sign-up ➔</span>
+                        </div>
+
+                        <div className="glass-card p-6 border-l-4 border-green-500 hover:shadow-md transition cursor-pointer">
+                            <h3 className="font-black text-lg mb-2">Transportation Policy</h3>
+                            <p className="text-xs text-gray-500 mb-4">School district guidelines for bus travel and student release forms for away matches.</p>
+                            <span className="text-sm font-bold text-green-600">Read Policy ➔</span>
+                        </div>
+                    </div>
+                </div>
+            );
+
+            const AdminDashboard = () => {
+                // Admin State
+                const [matchForm, setMatchForm] = React.useState({ date: '', opponent: '', location: 'Home', time: '4:00 PM', busTime: '', status: 'Scheduled' });
+                const [playerForm, setPlayerForm] = React.useState({ name: '', grade: '12', flight: 'Singles', position: 1 });
+                const [announcementForm, setAnnouncementForm] = React.useState('');
+                const [challengeForm, setChallengeForm] = React.useState({ date: today, challengerId: '', defenderId: '', score: '', winnerId: '' });
+                const [activeTab, setActiveTab] = React.useState('dashboard');
+                
+                // Scorecard Modal State
+                const [editingMatchId, setEditingMatchId] = React.useState(null);
+                const [scorecardData, setScorecardData] = React.useState([]);
+
+                const handleAddMatch = async (e) => {
+                    e.preventDefault();
+                    if(!db) return;
+                    try {
+                        await db.collection(`artifacts/${appId}/public/data/matches`).add({...matchForm, result: '', lines: []});
+                        setMatchForm({ date: '', opponent: '', location: 'Home', time: '4:00 PM', busTime: '', status: 'Scheduled' });
+                        alert("Match added!");
+                    } catch (err) { console.error(err); alert("Error saving"); }
+                };
+
+                const handleDeleteMatch = async (id) => {
+                    if(!confirm("Delete this match?")) return;
+                    await db.collection(`artifacts/${appId}/public/data/matches`).doc(id).delete();
+                };
+
+                const handleUpdateMatchStatus = async (id, status) => {
+                    await db.collection(`artifacts/${appId}/public/data/matches`).doc(id).update({ status });
+                };
+
+                // Open Scorecard Modal
+                const openScorecard = (match) => {
+                    setEditingMatchId(match.id);
+                    if (match.lines && match.lines.length > 0) {
+                        setScorecardData(match.lines);
+                    } else {
+                        setScorecardData(generateDefaultLines());
+                    }
+                };
+
+                // Update Line in Scorecard
+                const updateLine = (idx, field, value) => {
+                    const newData = [...scorecardData];
+                    if (field === 'player1') { newData[idx].playerIds[0] = value; }
+                    else if (field === 'player2') { newData[idx].playerIds[1] = value; }
+                    else { newData[idx][field] = value; }
+                    setScorecardData(newData);
+                };
+
+                // Save Full Scorecard and Auto-Calculate Team Score
+                const saveScorecard = async () => {
+                    const homeWins = scorecardData.filter(l => l.winner === 'Home').length;
+                    const awayWins = scorecardData.filter(l => l.winner === 'Away').length;
+                    
+                    let newResult = '';
+                    if (homeWins > awayWins) newResult = `W ${homeWins}-${awayWins}`;
+                    else if (awayWins > homeWins) newResult = `L ${awayWins}-${homeWins}`;
+                    else if (homeWins === 0 && awayWins === 0) newResult = ''; // Not played yet
+                    else newResult = `T ${homeWins}-${awayWins}`; 
+
+                    try {
+                        await db.collection(`artifacts/${appId}/public/data/matches`).doc(editingMatchId).update({
+                            lines: scorecardData,
+                            result: newResult,
+                            status: newResult ? 'Completed' : 'Scheduled'
+                        });
+                        setEditingMatchId(null);
+                        alert("Scorecard saved! Player records have been updated automatically.");
+                    } catch (e) {
+                        alert("Error saving scorecard");
+                    }
+                };
+
+                const handleAddPlayer = async (e) => {
+                    e.preventDefault();
+                    if(!db) return;
+                    try {
+                        await db.collection(`artifacts/${appId}/public/data/roster`).add({
+                            ...playerForm, position: parseInt(playerForm.position)
+                        });
+                        setPlayerForm({ name: '', grade: '12', flight: 'Singles', position: 1 });
+                        alert("Player added!");
+                    } catch (err) { console.error(err); alert("Error saving"); }
+                };
+
+                const handleDeletePlayer = async (id) => {
+                    if(!confirm("Remove this player?")) return;
+                    await db.collection(`artifacts/${appId}/public/data/roster`).doc(id).delete();
+                };
+
+                const handlePostAnnouncement = async (e) => {
+                    e.preventDefault();
+                    if(!db || !announcementForm.trim()) return;
+                    try {
+                        await db.collection(`artifacts/${appId}/public/data/announcements`).add({
+                            text: announcementForm,
+                            timestamp: Date.now()
+                        });
+                        setAnnouncementForm('');
+                        alert("Announcement posted to home page!");
+                    } catch (err) { console.error(err); alert("Error saving"); }
+                };
+
+                const handleLogChallenge = async (e) => {
+                    e.preventDefault();
+                    if(!db) return;
+                    if(challengeForm.challengerId === challengeForm.defenderId) return alert("Players must be different.");
+                    try {
+                        await db.collection(`artifacts/${appId}/public/data/challenges`).add({
+                            ...challengeForm,
+                            timestamp: Date.now()
+                        });
+                        setChallengeForm({ date: today, challengerId: '', defenderId: '', score: '', winnerId: '' });
+                        alert("Challenge match logged! Remember to update roster positions in the 'Roster' tab if the ladder changed.");
+                    } catch (err) { console.error(err); alert("Error saving"); }
+                };
+
+                const handleDeleteChallenge = async (id) => {
+                    if(!confirm("Delete this challenge record?")) return;
+                    await db.collection(`artifacts/${appId}/public/data/challenges`).doc(id).delete();
+                };
+
+                const getAdminPlayerName = (id) => {
+                    const p = roster.find(r => r.id === id);
+                    return p ? p.name : 'Unknown';
+                };
+
+                return (
+                    <div className="animate-slide-up relative">
+                        <div className="bg-black text-white p-6 rounded-2xl mb-6 shadow-lg flex justify-between items-center border-l-8 border-[#FFB81C]">
+                            <div>
+                                <h2 className="text-2xl font-black flex items-center gap-2"><Icons.Settings /> Coach Command Center</h2>
+                                <p className="text-gray-400 text-sm mt-1">Manage schedule, announcements, and match scorecards.</p>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2 mb-6 border-b border-gray-300 pb-2 overflow-x-auto">
+                            <button onClick={() => setActiveTab('dashboard')} className={`px-4 py-2 font-bold rounded-lg ${activeTab==='dashboard'?'bg-[#FFB81C] text-black':'text-gray-600 hover:bg-gray-200'}`}>Season Dashboard</button>
+                            <button onClick={() => setActiveTab('announce')} className={`px-4 py-2 font-bold rounded-lg ${activeTab==='announce'?'bg-[#FFB81C] text-black':'text-gray-600 hover:bg-gray-200'}`}>Announcements</button>
+                            <button onClick={() => setActiveTab('matches')} className={`px-4 py-2 font-bold rounded-lg ${activeTab==='matches'?'bg-[#FFB81C] text-black':'text-gray-600 hover:bg-gray-200'}`}>Matches & Scores</button>
+                            <button onClick={() => setActiveTab('roster')} className={`px-4 py-2 font-bold rounded-lg ${activeTab==='roster'?'bg-[#FFB81C] text-black':'text-gray-600 hover:bg-gray-200'}`}>Roster</button>
+                        </div>
+
+                        {activeTab === 'dashboard' && (
+                            <div className="space-y-6">
+                                <div className="glass-card p-6 border-t-4 border-black">
+                                    <h3 className="font-black text-xl mb-1 flex items-center gap-2"><Icons.Activity /> Player Analytics (Nominations)</h3>
+                                    <p className="text-xs text-gray-500 mb-4">Export these auto-calculated stats at the end of the season for District/Regional team recommendations.</p>
+                                    <div className="overflow-x-auto custom-scrollbar pb-2">
+                                        <table className="w-full text-sm text-left whitespace-nowrap">
+                                            <thead className="bg-gray-100 text-gray-600 uppercase text-xs">
+                                                <tr>
+                                                    <th className="px-3 py-2 rounded-tl-lg">Player</th>
+                                                    <th className="px-3 py-2">Ladder</th>
+                                                    <th className="px-3 py-2">Overall</th>
+                                                    <th className="px-3 py-2">Singles W-L</th>
+                                                    <th className="px-3 py-2">Doubles W-L</th>
+                                                    <th className="px-3 py-2 rounded-tr-lg">Win %</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-100">
+                                                {rosterWithStats.map(p => {
+                                                    const totalMatches = p.wins + p.losses;
+                                                    const winPct = totalMatches > 0 ? Math.round((p.wins / totalMatches) * 100) : 0;
+                                                    return (
+                                                        <tr key={p.id} className="hover:bg-gray-50">
+                                                            <td className="px-3 py-2 font-bold text-gray-800">{p.name}</td>
+                                                            <td className="px-3 py-2 text-gray-600">{p.flight.charAt(0)}{p.position}</td>
+                                                            <td className="px-3 py-2 font-black">{p.wins}-{p.losses}</td>
+                                                            <td className="px-3 py-2 text-blue-700 font-medium">{p.singlesWins}-{p.singlesLosses}</td>
+                                                            <td className="px-3 py-2 text-green-700 font-medium">{p.doublesWins}-{p.doublesLosses}</td>
+                                                            <td className="px-3 py-2 font-bold">{winPct}%</td>
+                                                        </tr>
+                                                    )
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <div className="glass-card p-6 border-t-4 border-[#FFB81C]">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h3 className="font-black text-xl flex items-center gap-2"><Icons.Swords /> Challenge Match Logger</h3>
+                                    </div>
+                                    <p className="text-xs text-gray-500 mb-4 bg-yellow-50 p-2 rounded border border-yellow-100">Documenting challenge matches aligns with USTA ADM transparency guidelines. This private log provides objective data for parents questioning lineup changes.</p>
+                                    
+                                    <form onSubmit={handleLogChallenge} className="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-6">
+                                        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Date</label>
+                                                <input type="date" required value={challengeForm.date} onChange={e=>setChallengeForm({...challengeForm, date: e.target.value})} className="w-full border rounded p-2 text-sm" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Challenger</label>
+                                                <select required value={challengeForm.challengerId} onChange={e=>setChallengeForm({...challengeForm, challengerId: e.target.value})} className="w-full border rounded p-2 text-sm">
+                                                    <option value="">Select...</option>
+                                                    {roster.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Defender</label>
+                                                <select required value={challengeForm.defenderId} onChange={e=>setChallengeForm({...challengeForm, defenderId: e.target.value})} className="w-full border rounded p-2 text-sm">
+                                                    <option value="">Select...</option>
+                                                    {roster.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Score / Notes</label>
+                                                <input type="text" required value={challengeForm.score} onChange={e=>setChallengeForm({...challengeForm, score: e.target.value})} placeholder="e.g. 8-6" className="w-full border rounded p-2 text-sm" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Winner</label>
+                                                <select required value={challengeForm.winnerId} onChange={e=>setChallengeForm({...challengeForm, winnerId: e.target.value})} className="w-full border rounded p-2 text-sm">
+                                                    <option value="">Select Winner...</option>
+                                                    {challengeForm.challengerId && <option value={challengeForm.challengerId}>Challenger</option>}
+                                                    {challengeForm.defenderId && <option value={challengeForm.defenderId}>Defender</option>}
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <button type="submit" className="mt-4 w-full bg-black text-[#FFB81C] font-black py-2 rounded shadow border border-[#FFB81C] hover:bg-gray-900 transition">Log Challenge Result</button>
+                                    </form>
+
+                                    <h4 className="font-bold text-gray-700 uppercase tracking-widest text-xs mb-2">Challenge History</h4>
+                                    <div className="space-y-2">
+                                        {challenges.length === 0 && <p className="text-sm text-gray-400 italic">No challenge matches logged yet.</p>}
+                                        {challenges.map(c => {
+                                            const challengerName = getAdminPlayerName(c.challengerId);
+                                            const defenderName = getAdminPlayerName(c.defenderId);
+                                            const winnerName = getAdminPlayerName(c.winnerId);
+                                            return (
+                                                <div key={c.id} className="flex justify-between items-center p-3 bg-white border border-gray-200 rounded shadow-sm">
+                                                    <div>
+                                                        <div className="text-xs text-gray-500">{new Date(c.date).toLocaleDateString()}</div>
+                                                        <div className="font-medium text-sm">
+                                                            <span className={c.winnerId === c.challengerId ? 'font-black text-green-700' : ''}>{challengerName}</span> 
+                                                            <span className="text-gray-400 mx-2">vs</span> 
+                                                            <span className={c.winnerId === c.defenderId ? 'font-black text-green-700' : ''}>{defenderName}</span>
+                                                        </div>
+                                                        <div className="text-xs text-gray-600 mt-1">Score: <span className="font-mono bg-gray-100 px-1 rounded">{c.score}</span></div>
+                                                    </div>
+                                                    <div className="flex flex-col items-end gap-2">
+                                                        <span className="text-[10px] uppercase font-black bg-[#FFB81C]/20 text-[#b47e00] px-2 py-1 rounded">Winner: {winnerName}</span>
+                                                        <button onClick={() => handleDeleteChallenge(c.id)} className="text-xs text-red-500 hover:underline">Delete</button>
+                                                    </div>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'announce' && (
+                            <div className="glass-card p-6 border-t-4 border-[#FFB81C]">
+                                <h3 className="font-black text-lg mb-2">Post Live Announcement</h3>
+                                <p className="text-xs text-gray-500 mb-4">This will appear at the very top of the Home page for all visitors. Use for rainouts, delays, etc.</p>
+                                <form onSubmit={handlePostAnnouncement}>
+                                    <textarea 
+                                        required 
+                                        value={announcementForm} 
+                                        onChange={e=>setAnnouncementForm(e.target.value)} 
+                                        className="w-full border rounded-lg p-3 mb-4 h-24"
+                                        placeholder="e.g., Today's match against Lincoln is cancelled due to rain. Indoor practice at 4 PM."
+                                    />
+                                    <button type="submit" className="bg-black text-[#FFB81C] font-black px-6 py-3 rounded-lg hover:bg-gray-900 transition shadow-md border border-[#FFB81C]">Publish to Home Page</button>
+                                </form>
+                            </div>
+                        )}
+
+                        {activeTab === 'matches' && (
+                            <div className="space-y-6">
+                                <div className="glass-card p-6 border-t-4 border-gray-800">
+                                    <h3 className="font-black text-lg mb-4">Add New Match</h3>
+                                    <form onSubmit={handleAddMatch} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Date</label><input type="date" required value={matchForm.date} onChange={e=>setMatchForm({...matchForm, date: e.target.value})} className="w-full border rounded-lg p-2" /></div>
+                                        <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Opponent</label><input type="text" required value={matchForm.opponent} onChange={e=>setMatchForm({...matchForm, opponent: e.target.value})} className="w-full border rounded-lg p-2" placeholder="e.g. John Champe High" /></div>
+                                        <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Location</label><select value={matchForm.location} onChange={e=>setMatchForm({...matchForm, location: e.target.value})} className="w-full border rounded-lg p-2"><option>Home</option><option>Away</option></select></div>
+                                        <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Match Time</label><input type="text" required value={matchForm.time} onChange={e=>setMatchForm({...matchForm, time: e.target.value})} className="w-full border rounded-lg p-2" /></div>
+                                        <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Bus Time (Optional)</label><input type="text" value={matchForm.busTime} onChange={e=>setMatchForm({...matchForm, busTime: e.target.value})} className="w-full border rounded-lg p-2" placeholder="e.g. 2:45 PM" /></div>
+                                        <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Initial Status</label><select value={matchForm.status} onChange={e=>setMatchForm({...matchForm, status: e.target.value})} className="w-full border rounded-lg p-2"><option>Scheduled</option><option>Delayed</option><option>Canceled</option></select></div>
+                                        <div className="md:col-span-2"><button type="submit" className="w-full bg-black text-[#FFB81C] font-black py-3 rounded-lg hover:bg-gray-900 transition shadow-md border border-[#FFB81C]">Add to Schedule</button></div>
+                                    </form>
+                                </div>
+
+                                <div className="glass-card p-6">
+                                    <h3 className="font-black text-lg mb-4">Matches & Scorecards</h3>
+                                    <p className="text-xs text-gray-500 mb-4 bg-gray-100 p-2 rounded">Click "Edit Scorecard" to log individual line results. Team scores and player Win/Loss records will auto-update based on the scorecard!</p>
+                                    <div className="space-y-3">
+                                        {matches.slice().reverse().map(m => (
+                                            <div key={m.id} className="flex flex-col md:flex-row justify-between items-center p-4 bg-white border border-gray-200 rounded-lg gap-4 shadow-sm">
+                                                <div className="flex-1 w-full">
+                                                    <div className="font-black text-gray-800 text-lg">vs {m.opponent}</div>
+                                                    <div className="text-sm text-gray-500 flex gap-2 items-center">{m.date} • {m.result ? <span className="font-bold text-green-600">{m.result}</span> : "No Score"}</div>
+                                                </div>
+                                                
+                                                <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                                                    <select value={m.status} onChange={(e) => handleUpdateMatchStatus(m.id, e.target.value)} className="border rounded px-2 py-2 text-sm bg-gray-50 focus:outline-none">
+                                                        <option>Scheduled</option><option>In Progress</option><option>Completed</option><option>Delayed</option><option>Canceled</option>
+                                                    </select>
+                                                    <button onClick={() => openScorecard(m)} className="bg-blue-100 text-blue-800 px-4 py-2 rounded font-bold hover:bg-blue-200 text-sm whitespace-nowrap border border-blue-200">
+                                                        {m.lines && m.lines.length > 0 ? '📝 Edit Scorecard' : '📝 Log Results'}
+                                                    </button>
+                                                    <button onClick={() => handleDeleteMatch(m.id)} className="bg-red-100 text-red-600 px-3 py-2 rounded font-bold hover:bg-red-200 text-sm">Del</button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'roster' && (
+                            <div className="space-y-6">
+                                <div className="glass-card p-6 border-t-4 border-blue-500">
+                                    <h3 className="font-black text-lg mb-2">Add Player</h3>
+                                    <p className="text-xs text-red-600 font-bold mb-4 bg-red-50 p-2 rounded inline-block">🔒 Privacy: Enter FULL name. Site will publicly truncate to First Name, Last Initial.</p>
+                                    <form onSubmit={handleAddPlayer} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Full Player Name</label><input type="text" required value={playerForm.name} onChange={e=>setPlayerForm({...playerForm, name: e.target.value})} className="w-full border rounded-lg p-2" placeholder="e.g. John Smith" /></div>
+                                        <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Grade</label><select value={playerForm.grade} onChange={e=>setPlayerForm({...playerForm, grade: e.target.value})} className="w-full border rounded-lg p-2"><option>9</option><option>10</option><option>11</option><option>12</option></select></div>
+                                        <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Flight</label><select value={playerForm.flight} onChange={e=>setPlayerForm({...playerForm, flight: e.target.value})} className="w-full border rounded-lg p-2"><option>Singles</option><option>Doubles</option></select></div>
+                                        <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Line Position</label><input type="number" min="1" max="6" required value={playerForm.position} onChange={e=>setPlayerForm({...playerForm, position: e.target.value})} className="w-full border rounded-lg p-2" /></div>
+                                        <div className="md:col-span-2"><button type="submit" className="w-full bg-blue-600 text-white font-black py-3 rounded-lg hover:bg-blue-700 transition shadow-md">Add Player</button></div>
+                                    </form>
+                                </div>
+
+                                <div className="glass-card p-6">
+                                    <h3 className="font-black text-lg mb-4">Current Roster</h3>
+                                    <p className="text-xs text-gray-500 mb-4 bg-gray-100 p-2 rounded">Win/Loss records are now calculated automatically from Match Scorecards.</p>
+                                    <div className="space-y-2">
+                                        {rosterWithStats.map(p => (
+                                            <div key={p.id} className="flex justify-between items-center p-3 bg-gray-50 border border-gray-200 rounded-lg gap-2">
+                                                <div>
+                                                    <div className="font-bold text-gray-800">{p.name} <span className="text-xs font-normal text-gray-400 italic">(Displays as {formatPrivacyName(p.name)})</span></div>
+                                                    <div className="text-xs text-gray-500">{p.flight} {p.position} • Record: {p.wins}-{p.losses}</div>
+                                                </div>
+                                                <button onClick={() => handleDeletePlayer(p.id)} className="bg-red-100 text-red-600 px-3 py-2 rounded font-bold hover:bg-red-200 text-sm">Remove</button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* FULL SCORECARD MODAL */}
+                        {editingMatchId && (
+                            <div className="modal-overlay" onClick={() => setEditingMatchId(null)}>
+                                <div className="modal-content max-w-4xl" onClick={e => e.stopPropagation()}>
+                                    <div className="flex justify-between items-center mb-4 border-b pb-3">
+                                        <h3 className="text-2xl font-black flex items-center gap-2">USTA Official Scorecard</h3>
+                                        <button onClick={() => setEditingMatchId(null)} className="text-gray-400 hover:text-gray-800 font-bold text-xl">✕</button>
+                                    </div>
+                                    <p className="text-sm text-gray-500 mb-4">Complete lines to auto-calculate the final score. Any line without a winner is excluded.</p>
+                                    
+                                    <div className="overflow-x-auto custom-scrollbar pb-4">
+                                        <table className="w-full text-sm text-left whitespace-nowrap">
+                                            <thead className="bg-black text-[#FFB81C] uppercase text-xs">
+                                                <tr>
+                                                    <th className="p-2 rounded-tl-lg">Line</th>
+                                                    <th className="p-2">Home Player(s)</th>
+                                                    <th className="p-2">Away Player(s)</th>
+                                                    <th className="p-2">Set Scores</th>
+                                                    <th className="p-2 rounded-tr-lg">Winner</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-200">
+                                                {scorecardData.map((line, idx) => (
+                                                    <tr key={idx} className="hover:bg-gray-50">
+                                                        <td className="p-2 font-bold text-gray-700 bg-gray-100/50">{line.id}</td>
+                                                        <td className="p-2 flex flex-col gap-1">
+                                                            <select value={line.playerIds[0] || ''} onChange={(e) => updateLine(idx, 'player1', e.target.value)} className="border p-1 rounded text-xs">
+                                                                <option value="">Select Roster...</option>
+                                                                {roster.map(r => <option key={r.id} value={r.id}>{r.name} ({r.flight.charAt(0)}{r.position})</option>)}
+                                                            </select>
+                                                            {line.type === 'Doubles' && (
+                                                                <select value={line.playerIds[1] || ''} onChange={(e) => updateLine(idx, 'player2', e.target.value)} className="border p-1 rounded text-xs mt-1">
+                                                                    <option value="">Select Partner...</option>
+                                                                    {roster.map(r => <option key={r.id} value={r.id}>{r.name} ({r.flight.charAt(0)}{r.position})</option>)}
+                                                                </select>
+                                                            )}
+                                                        </td>
+                                                        <td className="p-2">
+                                                            <input type="text" value={line.opponentName} onChange={(e) => updateLine(idx, 'opponentName', e.target.value)} className="border p-1 rounded w-full text-xs" placeholder="Opponent Name(s)" />
+                                                        </td>
+                                                        <td className="p-2">
+                                                            <input type="text" value={line.score} onChange={(e) => updateLine(idx, 'score', e.target.value)} className="border p-1 rounded w-24 text-xs font-mono" placeholder="e.g. 6-4, 6-2" />
+                                                        </td>
+                                                        <td className="p-2">
+                                                            <select value={line.winner} onChange={(e) => updateLine(idx, 'winner', e.target.value)} className={`border p-1 rounded text-xs font-bold ${line.winner==='Home'?'bg-yellow-100 text-[#b47e00]':line.winner==='Away'?'bg-gray-200':''}`}>
+                                                                <option value="">- TBD -</option>
+                                                                <option value="Home">Home (W)</option>
+                                                                <option value="Away">Away (L)</option>
+                                                            </select>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div className="mt-6 pt-4 border-t flex justify-end gap-3">
+                                        <button onClick={() => setEditingMatchId(null)} className="px-6 py-3 font-bold text-gray-500 hover:bg-gray-100 rounded-lg">Cancel</button>
+                                        <button onClick={saveScorecard} className="px-6 py-3 bg-green-600 text-white font-black rounded-lg hover:bg-green-700 shadow-md">Save & Auto-Calculate Score</button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                    </div>
+                );
+            };
+
+            if (loading) {
+                return <div className="min-h-screen flex items-center justify-center bg-gray-50"><div className="animate-pulse flex flex-col items-center"><Icons.TennisBall /><p className="mt-4 font-bold text-gray-400 tracking-widest uppercase">Loading Court...</p></div></div>;
+            }
+
+            return (
+                <div className="min-h-screen flex flex-col">
+                    {/* Header */}
+                    <header className="header-gradient text-white pt-10 pb-6 px-6 shadow-md relative overflow-hidden">
+                        <div className="absolute -right-10 -bottom-10 opacity-5 transform rotate-45 scale-150 text-white"><Icons.TennisBall /></div>
+                        <div className="max-w-4xl mx-auto relative z-10 flex items-center gap-4">
+                            <div className="bg-black text-[#FFB81C] p-3 rounded-2xl shadow-lg border border-[#FFB81C]/50">
+                                <Icons.TennisBall />
+                            </div>
+                            <div>
+                                <h1 className="text-2xl md:text-3xl font-black italic tracking-tight text-white">Freedom Varsity Tennis</h1>
+                                <p className="text-gray-400 text-sm font-bold uppercase tracking-widest mt-1">South Riding, VA</p>
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* Navigation */}
+                    <div className="bg-white border-b border-gray-200 sticky top-0 z-40 shadow-sm">
+                        <div className="max-w-4xl mx-auto flex">
+                            <button onClick={() => setView('home')} className={`flex-1 py-4 flex flex-col items-center gap-1 nav-item ${view==='home'?'active':''}`}>
+                                <Icons.Home /><span className="text-[10px] uppercase tracking-widest">Home</span>
+                            </button>
+                            <button onClick={() => setView('schedule')} className={`flex-1 py-4 flex flex-col items-center gap-1 nav-item ${view==='schedule'?'active':''}`}>
+                                <Icons.Calendar /><span className="text-[10px] uppercase tracking-widest">Schedule</span>
+                            </button>
+                            <button onClick={() => setView('roster')} className={`flex-1 py-4 flex flex-col items-center gap-1 nav-item ${view==='roster'?'active':''}`}>
+                                <Icons.Users /><span className="text-[10px] uppercase tracking-widest">Roster</span>
+                            </button>
+                            <button onClick={() => setView('resources')} className={`flex-1 py-4 flex flex-col items-center gap-1 nav-item ${view==='resources'?'active':''}`}>
+                                <Icons.Info /><span className="text-[10px] uppercase tracking-widest">Resources</span>
+                            </button>
+                            {isAdmin && (
+                                <button onClick={() => setView('admin')} className={`flex-1 py-4 flex flex-col items-center gap-1 nav-item ${view==='admin'?'active text-[#FFB81C]':''}`}>
+                                    <Icons.Settings /><span className="text-[10px] uppercase tracking-widest">Coach</span>
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Main Content Area */}
+                    <main className="flex-1 max-w-4xl w-full mx-auto p-4 md:p-6 pb-24">
+                        {view === 'home' && <HomeView />}
+                        {view === 'schedule' && <ScheduleView />}
+                        {view === 'roster' && <RosterView />}
+                        {view === 'resources' && <ResourcesView />}
+                        {view === 'admin' && isAdmin && <AdminDashboard />}
+                    </main>
+
+                    {/* Footer & Hidden Admin Toggle */}
+                    <footer className="bg-black text-gray-500 py-6 text-center text-xs mt-auto">
+                        <div className="max-w-4xl mx-auto flex flex-col items-center justify-center">
+                            <p>© {new Date().getFullYear()} Freedom High School Tennis</p>
+                            <button 
+                                onClick={toggleAdminStatus} 
+                                className={`mt-4 p-2 rounded-full transition ${isAdmin ? 'bg-[#FFB81C] text-black shadow-[0_0_15px_rgba(255,184,28,0.3)]' : 'hover:bg-gray-900'}`}
+                                aria-label="Coach Login"
+                            >
+                                {isAdmin ? <Icons.Unlock /> : <Icons.Lock />}
+                            </button>
+                        </div>
+                    </footer>
+
+                    {/* Modals */}
+                    {showPinModal && <PinModal />}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
