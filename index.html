@@ -475,9 +475,18 @@
             const [editingMatchId, setEditingMatchId] = React.useState(null);
             const [scorecardData, setScorecardData] = React.useState([]);
 
+            // Helper to check for permission errors gracefully
+            const checkPermissionsError = (err) => {
+                if (err.code === 'permission-denied') {
+                    alert("⚠️ FIREBASE ERROR: Your Firestore database rules are blocking this save.\n\nPlease go to the Firebase Console -> Firestore Database -> Rules, and ensure they allow read/write access.");
+                } else {
+                    alert("Error saving: " + err.message);
+                }
+            };
+
             const handleAddMatch = async (e) => {
                 e.preventDefault();
-                if(!user || !db) return alert("Not connected to database");
+                if(!user || !db) return alert("Not connected to database! Please make sure 'Anonymous' Sign-In is enabled in your Firebase Authentication settings.");
                 try {
                     await db.collection(`artifacts/${appId}/public/data/matches`).add({
                         ...matchForm, 
@@ -488,19 +497,23 @@
                     alert("Match added!");
                 } catch (err) { 
                     console.error(err); 
-                    alert("Error saving match: " + err.message); 
+                    checkPermissionsError(err);
                 }
             };
 
             const handleDeleteMatch = async (id) => {
                 if(!confirm("Delete this match?")) return;
                 if(!user || !db) return;
-                await db.collection(`artifacts/${appId}/public/data/matches`).doc(id).delete();
+                try {
+                    await db.collection(`artifacts/${appId}/public/data/matches`).doc(id).delete();
+                } catch (err) { checkPermissionsError(err); }
             };
 
             const handleUpdateMatchStatus = async (id, status) => {
                 if(!user || !db) return;
-                await db.collection(`artifacts/${appId}/public/data/matches`).doc(id).update({ status });
+                try {
+                    await db.collection(`artifacts/${appId}/public/data/matches`).doc(id).update({ status });
+                } catch (err) { checkPermissionsError(err); }
             };
 
             const openScorecard = (match) => {
@@ -524,7 +537,7 @@
             };
 
             const saveScorecard = async () => {
-                if(!user || !db) return alert("Not connected to database");
+                if(!user || !db) return alert("Not connected to database! Please make sure 'Anonymous' Sign-In is enabled in your Firebase Authentication settings.");
                 const homeWins = scorecardData.filter(l => l.winner === 'Home').length;
                 const awayWins = scorecardData.filter(l => l.winner === 'Away').length;
                 
@@ -542,32 +555,34 @@
                     });
                     setEditingMatchId(null);
                     alert("Scorecard saved! Player records have been updated automatically.");
-                } catch (e) {
-                    alert("Error saving scorecard");
+                } catch (err) {
+                    checkPermissionsError(err);
                 }
             };
 
             const handleAddPlayer = async (e) => {
                 e.preventDefault();
-                if(!user || !db) return alert("Not connected to database");
+                if(!user || !db) return alert("Not connected to database! Please make sure 'Anonymous' Sign-In is enabled in your Firebase Authentication settings.");
                 try {
                     await db.collection(`artifacts/${appId}/public/data/roster`).add({
                         ...playerForm, position: parseInt(playerForm.position)
                     });
                     setPlayerForm({ name: '', grade: '12', flight: 'Singles', position: 1 });
                     alert("Player added!");
-                } catch (err) { console.error(err); alert("Error saving"); }
+                } catch (err) { console.error(err); checkPermissionsError(err); }
             };
 
             const handleDeletePlayer = async (id) => {
                 if(!confirm("Remove this player?")) return;
                 if(!user || !db) return;
-                await db.collection(`artifacts/${appId}/public/data/roster`).doc(id).delete();
+                try {
+                    await db.collection(`artifacts/${appId}/public/data/roster`).doc(id).delete();
+                } catch (err) { checkPermissionsError(err); }
             };
 
             const handlePostAnnouncement = async (e) => {
                 e.preventDefault();
-                if(!user || !db || !announcementForm.trim()) return;
+                if(!user || !db || !announcementForm.trim()) return alert("Not connected to database! Please make sure 'Anonymous' Sign-In is enabled in your Firebase Authentication settings.");
                 try {
                     await db.collection(`artifacts/${appId}/public/data/announcements`).add({
                         text: announcementForm,
@@ -575,12 +590,12 @@
                     });
                     setAnnouncementForm('');
                     alert("Announcement posted to home page!");
-                } catch (err) { console.error(err); alert("Error saving"); }
+                } catch (err) { console.error(err); checkPermissionsError(err); }
             };
 
             const handleLogChallenge = async (e) => {
                 e.preventDefault();
-                if(!user || !db) return alert("Not connected to database");
+                if(!user || !db) return alert("Not connected to database! Please make sure 'Anonymous' Sign-In is enabled in your Firebase Authentication settings.");
                 if(challengeForm.challengerId === challengeForm.defenderId) return alert("Players must be different.");
                 try {
                     await db.collection(`artifacts/${appId}/public/data/challenges`).add({
@@ -589,13 +604,15 @@
                     });
                     setChallengeForm({ date: today, challengerId: '', defenderId: '', score: '', winnerId: '' });
                     alert("Challenge match logged! Remember to update roster positions in the 'Roster' tab if the ladder changed.");
-                } catch (err) { console.error(err); alert("Error saving"); }
+                } catch (err) { console.error(err); checkPermissionsError(err); }
             };
 
             const handleDeleteChallenge = async (id) => {
                 if(!confirm("Delete this challenge record?")) return;
                 if(!user || !db) return;
-                await db.collection(`artifacts/${appId}/public/data/challenges`).doc(id).delete();
+                try {
+                    await db.collection(`artifacts/${appId}/public/data/challenges`).doc(id).delete();
+                } catch (err) { checkPermissionsError(err); }
             };
 
             const getAdminPlayerName = (id) => {
@@ -903,6 +920,8 @@
             // ADMIN STATE
             const [isAdmin, setIsAdmin] = React.useState(false);
             const [showPinModal, setShowPinModal] = React.useState(false);
+            const [pinInput, setPinInput] = React.useState('');
+            const [pinError, setPinError] = React.useState('');
             const COACH_PIN = "050321";
 
             // FIREBASE INIT & AUTH
@@ -925,17 +944,28 @@
                         setAppId(currentAppId);
                         setDb(firebase.firestore());
 
-                        // AUTH FIX: Strictly use Anonymous Auth for your real project
-                        await firebase.auth().signInAnonymously();
+                        // AUTH FIX: Strictly use Anonymous Auth
+                        try {
+                            await firebase.auth().signInAnonymously();
+                        } catch (authError) {
+                            console.error("Auth Error:", authError);
+                            if (authError.code === 'auth/operation-not-allowed') {
+                                alert("🚨 FIREBASE SETUP MISSING 🚨\n\nYou must go to the Firebase Console -> Authentication -> Sign-in Method, and ENABLE 'Anonymous' authentication for the database to work!");
+                            }
+                        }
                         
                     } catch (e) {
                         console.error("Firebase Initialization Error:", e);
+                    } finally {
                         setLoading(false);
                     }
                 };
                 
                 initFirebase();
-                const unsubscribe = firebase.auth().onAuthStateChanged(setUser);
+                const unsubscribe = firebase.auth().onAuthStateChanged((u) => {
+                    setUser(u);
+                    if (u) setLoading(false);
+                });
                 return () => unsubscribe();
             }, []);
 
@@ -949,10 +979,8 @@
                         snap.forEach(doc => m.push({ id: doc.id, ...doc.data() }));
                         m.sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
                         setMatches(m);
-                        setLoading(false);
                     }, (err) => {
                         console.error("Error fetching matches", err);
-                        setLoading(false);
                     });
 
                 const rosterUnsub = db.collection(`artifacts/${appId}/public/data/roster`)
