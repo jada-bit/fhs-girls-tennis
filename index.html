@@ -598,6 +598,19 @@
                 <h2 className="text-2xl font-black text-gray-800 mb-2 border-b border-gray-200 pb-2">Parent & Player Resources</h2>
                 <p className="text-sm text-gray-600 mb-6">Important forms and information for the current season.</p>
                 
+                {/* Public Awards Criteria Banner */}
+                <div className="bg-black text-white p-6 rounded-2xl shadow-xl border-l-4 border-[#FFB81C] mb-6">
+                    <h3 className="font-black text-xl mb-4 flex items-center gap-2 text-[#FFB81C]"><Icons.Trophy /> Season Awards Criteria</h3>
+                    <p className="text-xs text-gray-400 mb-4 border-b border-gray-800 pb-4">Our program follows the USTA American Development Model. We recognize players who embody the "5 C's" of tennis (Character, Competence, Confidence, Connection, Creativity).</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 text-sm">
+                        <div><strong className="text-[#FFB81C] block mb-1">Player of the Match</strong> Overall outstanding performance and tangible contribution to the team's success.</div>
+                        <div><strong className="text-[#FFB81C] block mb-1">The "Gold Standard"</strong> Character: Exceptional sportsmanship, cheering for teammates, and representing Freedom High with integrity.</div>
+                        <div><strong className="text-[#FFB81C] block mb-1">The "Grit" Award</strong> Resilience: Fighting hard through a tough match, overcoming a major deficit, or showing extreme mental toughness.</div>
+                        <div><strong className="text-[#FFB81C] block mb-1">The "Net Gen" Award</strong> Growth: Successfully applying a new skill or strategy from practice in a real match setting.</div>
+                        <div><strong className="text-[#FFB81C] block mb-1">Clutch Performer</strong> Confidence: Stepping up in high-pressure moments, winning tiebreakers, or securing a deciding team point.</div>
+                    </div>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <a href="PASTE_SPORTSYOU_LINK_HERE" target="_blank" rel="noopener noreferrer" className="glass-card p-6 border-l-4 border-blue-600 hover:shadow-md transition cursor-pointer block">
                         <h3 className="font-black text-lg mb-2 flex items-center gap-2"><Icons.MessageCircle /> SportsYou Team App</h3>
@@ -654,12 +667,63 @@
             const [editingMatchId, setEditingMatchId] = React.useState(null);
             const [scorecardData, setScorecardData] = React.useState([]);
 
+            const awardDescriptions = {
+                'Player of the Match': 'Overall outstanding performance and contribution to the team\'s success.',
+                'The "Gold Standard" Award': 'Character: Exceptional sportsmanship, cheering for teammates, and representing Freedom High with integrity.',
+                'The "Grit" Award': 'Resilience: Fighting hard through a tough match, overcoming a deficit, or showing extreme mental toughness.',
+                'The "Net Gen" Award (Growth)': 'Competence: Successfully applying a new skill or strategy from practice in a real match setting.',
+                'Clutch Performer': 'Confidence: Stepping up in high-pressure moments, winning tiebreakers, or securing the deciding team point.'
+            };
+
             // Helper to check for permission errors gracefully
             const checkPermissionsError = (err) => {
                 if (err.code === 'permission-denied') {
                     alert("⚠️ FIREBASE ERROR: Your Firestore database rules are blocking this save.\n\nPlease go to the Firebase Console -> Firestore Database -> Rules, and ensure they allow read/write access.");
                 } else {
                     alert("Error saving: " + err.message);
+                }
+            };
+
+            // BULK IMPORT SCRIPT
+            const handleBulkImportSchedule = async () => {
+                if(!user || !db) return alert("Not connected to database!");
+                if(!confirm("Are you sure? This will instantly inject all 20 matches from your PDF into the live schedule!")) return;
+
+                const year = new Date().getFullYear();
+                const bulkSchedule = [
+                    { date: `${year}-03-11`, opponent: "Battlefield (Scrimmage)", location: "Away", address: "", time: "4:30 PM", busTime: "", returnTime: "", status: "Scheduled" },
+                    { date: `${year}-03-16`, opponent: "Chantilly (Scrimmage)", location: "Freedom High School", address: "", time: "4:30 PM", busTime: "", returnTime: "", status: "Scheduled" },
+                    { date: `${year}-03-19`, opponent: "Potomac Falls", location: "Freedom High School", address: "", time: "4:45 PM", busTime: "", returnTime: "", status: "Scheduled" },
+                    { date: `${year}-03-25`, opponent: "Lightridge", location: "Away", address: "", time: "4:45 PM", busTime: "", returnTime: "", status: "Scheduled" },
+                    { date: `${year}-04-07`, opponent: "Stone Bridge", location: "Freedom High School", address: "", time: "4:45 PM", busTime: "", returnTime: "", status: "Scheduled" },
+                    { date: `${year}-04-09`, opponent: "Riverside", location: "Away", address: "", time: "4:45 PM", busTime: "", returnTime: "", status: "Scheduled" },
+                    { date: `${year}-04-13`, opponent: "Potomac Falls", location: "Away", address: "", time: "4:45 PM", busTime: "", returnTime: "", status: "Scheduled" },
+                    { date: `${year}-04-16`, opponent: "Briar Woods", location: "Away", address: "", time: "4:45 PM", busTime: "", returnTime: "", status: "Scheduled" },
+                    { date: `${year}-04-20`, opponent: "Loudoun Valley", location: "Away", address: "", time: "4:45 PM", busTime: "", returnTime: "", status: "Scheduled" },
+                    { date: `${year}-04-22`, opponent: "Champe", location: "Freedom High School", address: "", time: "4:45 PM", busTime: "", returnTime: "", status: "Scheduled" },
+                    { date: `${year}-04-27`, opponent: "Riverside", location: "Freedom High School", address: "", time: "4:45 PM", busTime: "", returnTime: "", status: "Scheduled" },
+                    { date: `${year}-04-30`, opponent: "Lightridge", location: "Freedom High School", address: "", time: "4:45 PM", busTime: "", returnTime: "", status: "Scheduled" },
+                    { date: `${year}-05-05`, opponent: "Stone Bridge", location: "Away", address: "", time: "4:45 PM", busTime: "", returnTime: "", status: "Scheduled" },
+                    { date: `${year}-05-07`, opponent: "Rock Ridge", location: "Freedom High School", address: "", time: "4:45 PM", busTime: "", returnTime: "", status: "Scheduled" },
+                    { date: `${year}-05-11`, opponent: "Champe", location: "Away", address: "", time: "4:45 PM", busTime: "", returnTime: "", status: "Scheduled" },
+                    { date: `${year}-05-12`, opponent: "Briar Woods", location: "Freedom High School", address: "", time: "4:45 PM", busTime: "", returnTime: "", status: "Scheduled" },
+                    { date: `${year}-05-14`, opponent: "District Team Tennis", location: "Higher Seed", address: "", time: "TBD", busTime: "", returnTime: "", status: "Scheduled" },
+                    { date: `${year}-05-20`, opponent: "District Singles/Doubles", location: "Lightridge High School", address: "", time: "TBD", busTime: "", returnTime: "", status: "Scheduled" },
+                    { date: `${year}-05-26`, opponent: "Region Team Tennis", location: "Higher Seed", address: "", time: "TBD", busTime: "", returnTime: "", status: "Scheduled" },
+                    { date: `${year}-06-01`, opponent: "Region S/D", location: "Massaponax High School", address: "", time: "TBD", busTime: "", returnTime: "", status: "Scheduled" }
+                ];
+
+                try {
+                    const batch = db.batch();
+                    bulkSchedule.forEach(match => {
+                        const docRef = db.collection(`artifacts/${appId}/public/data/matches`).doc();
+                        batch.set(docRef, { ...match, result: '', lines: [] });
+                    });
+                    await batch.commit();
+                    alert("Success! All 20 matches from your PDF have been imported to the schedule.");
+                } catch (err) {
+                    console.error(err);
+                    checkPermissionsError(err);
                 }
             };
 
@@ -1014,6 +1078,9 @@
                                             <option>The "Net Gen" Award (Growth)</option>
                                             <option>Clutch Performer</option>
                                         </select>
+                                        <div className="text-[10px] text-blue-700 bg-blue-50 p-2 mt-2 rounded border border-blue-100 leading-tight">
+                                            <strong>What to look for:</strong> {awardDescriptions[awardForm.title]}
+                                        </div>
                                     </div>
                                     <div>
                                         <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Select Player</label>
@@ -1097,8 +1164,16 @@
                             </div>
 
                             <div className="glass-card p-6">
-                                <h3 className="font-black text-lg mb-4">Matches & Scorecards</h3>
-                                <p className="text-xs text-gray-500 mb-4 bg-gray-100 p-2 rounded">Click "Edit Scorecard" to log individual line results. Team scores and player Win/Loss records will auto-update based on the scorecard!</p>
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
+                                    <div>
+                                        <h3 className="font-black text-lg">Matches & Scorecards</h3>
+                                        <p className="text-xs text-gray-500 bg-gray-100 p-2 rounded mt-1">Click "Edit Scorecard" to log individual line results. Team scores and player Win/Loss records will auto-update!</p>
+                                    </div>
+                                    <button onClick={handleBulkImportSchedule} className="bg-purple-600 text-white text-xs font-black px-4 py-3 rounded shadow hover:bg-purple-700 whitespace-nowrap border border-purple-800 transition">
+                                        ⚡ 1-Click Import Schedule
+                                    </button>
+                                </div>
+                                
                                 <div className="space-y-3">
                                     {matches.slice().reverse().map(m => (
                                         <div key={m.id} className="flex flex-col md:flex-row justify-between items-center p-4 bg-white border border-gray-200 rounded-lg gap-4 shadow-sm">
