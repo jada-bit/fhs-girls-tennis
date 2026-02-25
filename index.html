@@ -175,6 +175,79 @@
             ];
         };
 
+        // --- LIVE COUNTDOWN COMPONENT ---
+        const MatchCountdown = ({ dateStr, timeStr }) => {
+            const [timeLeft, setTimeLeft] = React.useState({ days: 0, hours: 0, minutes: 0, seconds: 0, isPast: false });
+
+            React.useEffect(() => {
+                // Parse the match date and time securely
+                let matchDate = new Date(`${dateStr}T12:00:00`); // Default to noon if time parsing fails
+                try {
+                    if (timeStr && timeStr.toLowerCase() !== 'tbd') {
+                        const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM|am|pm)/);
+                        if (match) {
+                            let hours = parseInt(match[1], 10);
+                            const mins = parseInt(match[2], 10);
+                            const modifier = match[3].toUpperCase();
+                            if (modifier === 'PM' && hours < 12) hours += 12;
+                            if (modifier === 'AM' && hours === 12) hours = 0;
+                            // Reconstruct precise date object for the countdown
+                            matchDate = new Date(`${dateStr}T${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:00`);
+                        }
+                    }
+                } catch (e) {
+                    console.log("Time parsing error, defaulting to noon", e);
+                }
+
+                const timer = setInterval(() => {
+                    const now = new Date();
+                    const difference = matchDate.getTime() - now.getTime();
+
+                    if (difference <= 0) {
+                        setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0, isPast: true });
+                        clearInterval(timer);
+                    } else {
+                        setTimeLeft({
+                            days: Math.floor(difference / (1000 * 60 * 60 * 24)),
+                            hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
+                            minutes: Math.floor((difference / 1000 / 60) % 60),
+                            seconds: Math.floor((difference / 1000) % 60),
+                            isPast: false
+                        });
+                    }
+                }, 1000);
+
+                return () => clearInterval(timer);
+            }, [dateStr, timeStr]);
+
+            if (timeLeft.isPast) return (
+                <div className="mt-5 bg-[#FFB81C]/20 border border-[#FFB81C] text-[#FFB81C] px-4 py-3 rounded-lg font-black uppercase tracking-widest text-sm flex items-center justify-center gap-2 animate-pulse">
+                    <Icons.Activity /> Match is underway!
+                </div>
+            );
+
+            return (
+                <div className="mt-6 flex flex-wrap gap-2 sm:gap-3">
+                    <div className="bg-[#18181b] border border-[#FFB81C]/30 rounded-lg p-2 w-16 text-center shadow-inner">
+                        <div className="text-2xl font-black text-white">{timeLeft.days}</div>
+                        <div className="text-[9px] uppercase tracking-widest text-[#FFB81C]">Days</div>
+                    </div>
+                    <div className="bg-[#18181b] border border-[#FFB81C]/30 rounded-lg p-2 w-16 text-center shadow-inner">
+                        <div className="text-2xl font-black text-white">{timeLeft.hours}</div>
+                        <div className="text-[9px] uppercase tracking-widest text-[#FFB81C]">Hrs</div>
+                    </div>
+                    <div className="bg-[#18181b] border border-[#FFB81C]/30 rounded-lg p-2 w-16 text-center shadow-inner">
+                        <div className="text-2xl font-black text-white">{timeLeft.minutes}</div>
+                        <div className="text-[9px] uppercase tracking-widest text-[#FFB81C]">Mins</div>
+                    </div>
+                    <div className="bg-[#18181b] border border-[#FFB81C]/30 rounded-lg p-2 w-16 text-center shadow-inner">
+                        <div className="text-2xl font-black text-white">{timeLeft.seconds}</div>
+                        <div className="text-[9px] uppercase tracking-widest text-[#FFB81C]">Secs</div>
+                    </div>
+                </div>
+            );
+        };
+
         // --- EXTRACTED COMPONENTS (MOVED OUTSIDE TO PREVENT UNMOUNTING BUGS) ---
 
         const ScorecardView = ({ match, roster }) => {
@@ -287,6 +360,10 @@
                                     {nextMatch.returnTime && <div>🏠 Est. Return to School: {nextMatch.returnTime}</div>}
                                 </div>
                             )}
+                            
+                            {/* Injected Live Countdown Here */}
+                            <MatchCountdown dateStr={nextMatch.date} timeStr={nextMatch.time} />
+                            
                         </div>
                     </div>
                 ) : (
