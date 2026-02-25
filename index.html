@@ -406,8 +406,14 @@
         const RosterView = ({ rosterWithStats, matches, awards }) => {
             const [selectedPlayer, setSelectedPlayer] = React.useState(null);
 
-            const singlesPlayers = rosterWithStats.filter(p => p.flight === 'Singles');
-            const doublesPlayers = rosterWithStats.filter(p => p.flight === 'Doubles');
+            // Filter players based on their flight, allowing "Both" to appear in both lists
+            const singlesPlayers = rosterWithStats
+                .filter(p => p.flight === 'Singles' || p.flight === 'Both')
+                .sort((a, b) => a.position - b.position);
+                
+            const doublesPlayers = rosterWithStats
+                .filter(p => p.flight === 'Doubles' || p.flight === 'Both')
+                .sort((a, b) => (a.doublesPosition || a.position) - (b.doublesPosition || b.position));
 
             const PlayerCard = ({ player }) => (
                 <div 
@@ -419,8 +425,17 @@
                             <h4 className="font-black text-lg text-gray-800 leading-tight group-hover:text-[#b47e00] transition-colors">{formatPrivacyName(player.name)}</h4>
                             <span className="text-xs font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded-md mt-2 inline-block">Grade {player.grade}</span>
                         </div>
-                        <div className="w-8 h-8 rounded-full bg-black text-[#FFB81C] flex items-center justify-center font-black text-xs border border-[#FFB81C]/50 shadow-sm">
-                            {player.flight === 'Singles' ? `S${player.position}` : `D${player.position}`}
+                        <div className="flex gap-1">
+                            {(player.flight === 'Singles' || player.flight === 'Both') && (
+                                <div className="w-8 h-8 rounded-full bg-black text-[#FFB81C] flex items-center justify-center font-black text-xs border border-[#FFB81C]/50 shadow-sm" title="Singles Rank">
+                                    S{player.position}
+                                </div>
+                            )}
+                            {(player.flight === 'Doubles' || player.flight === 'Both') && (
+                                <div className="w-8 h-8 rounded-full bg-[#FFB81C] text-black flex items-center justify-center font-black text-xs border border-black/20 shadow-sm" title="Doubles Rank">
+                                    D{player.doublesPosition || player.position}
+                                </div>
+                            )}
                         </div>
                     </div>
                     <div className="flex justify-between items-end border-t border-gray-100 pt-3">
@@ -460,7 +475,9 @@
                             <div className="flex justify-between items-start mb-6 border-b border-gray-200 pb-4">
                                 <div>
                                     <h3 className="text-3xl font-black text-gray-900">{formatPrivacyName(player.name)}</h3>
-                                    <p className="text-sm font-bold text-gray-500 uppercase tracking-widest mt-1">Grade {player.grade} • {player.flight} {player.position}</p>
+                                    <p className="text-sm font-bold text-gray-500 uppercase tracking-widest mt-1">
+                                        Grade {player.grade} • {player.flight === 'Both' ? `Singles ${player.position} / Doubles ${player.doublesPosition || player.position}` : `${player.flight} ${player.position}`}
+                                    </p>
                                 </div>
                                 <button onClick={() => setSelectedPlayer(null)} className="text-gray-400 hover:text-gray-800 font-black text-2xl">✕</button>
                             </div>
@@ -623,11 +640,16 @@
 
         const AdminDashboard = ({ user, db, appId, matches, roster, rosterWithStats, announcements, awards, challenges, today }) => {
             const [matchForm, setMatchForm] = React.useState({ date: '', opponent: '', location: 'Freedom High School', address: '', time: '4:00 PM', busTime: '', returnTime: '', status: 'Scheduled' });
-            const [playerForm, setPlayerForm] = React.useState({ name: '', grade: '12', flight: 'Singles', position: 1 });
+            const [playerForm, setPlayerForm] = React.useState({ name: '', grade: '12', flight: 'Singles', position: 1, doublesPosition: 1 });
             const [announcementForm, setAnnouncementForm] = React.useState('');
             const [awardForm, setAwardForm] = React.useState({ title: 'Player of the Match', playerId: '', description: '' });
             const [challengeForm, setChallengeForm] = React.useState({ date: today, challengerId: '', defenderId: '', score: '', winnerId: '' });
             const [activeTab, setActiveTab] = React.useState('dashboard');
+            
+            // New State for Ladder Management & Automation
+            const [autoSwap, setAutoSwap] = React.useState(false);
+            const [editPlayerId, setEditPlayerId] = React.useState(null);
+            const [editPlayerForm, setEditPlayerForm] = React.useState({ flight: 'Singles', position: 1, doublesPosition: 1 });
             
             const [editingMatchId, setEditingMatchId] = React.useState(null);
             const [scorecardData, setScorecardData] = React.useState([]);
@@ -722,9 +744,11 @@
                 if(!user || !db) return alert("Not connected to database! Please make sure 'Anonymous' Sign-In is enabled in your Firebase Authentication settings.");
                 try {
                     await db.collection(`artifacts/${appId}/public/data/roster`).add({
-                        ...playerForm, position: parseInt(playerForm.position)
+                        ...playerForm, 
+                        position: parseInt(playerForm.position),
+                        doublesPosition: parseInt(playerForm.doublesPosition)
                     });
-                    setPlayerForm({ name: '', grade: '12', flight: 'Singles', position: 1 });
+                    setPlayerForm({ name: '', grade: '12', flight: 'Singles', position: 1, doublesPosition: 1 });
                     alert("Player added!");
                 } catch (err) { console.error(err); checkPermissionsError(err); }
             };
@@ -734,6 +758,23 @@
                 if(!user || !db) return;
                 try {
                     await db.collection(`artifacts/${appId}/public/data/roster`).doc(id).delete();
+                } catch (err) { checkPermissionsError(err); }
+            };
+
+            const startEditPlayer = (p) => {
+                setEditPlayerId(p.id);
+                setEditPlayerForm({ flight: p.flight, position: p.position, doublesPosition: p.doublesPosition || p.position || 1 });
+            };
+
+            const savePlayerEdit = async (id) => {
+                if(!user || !db) return;
+                try {
+                    await db.collection(`artifacts/${appId}/public/data/roster`).doc(id).update({
+                        flight: editPlayerForm.flight,
+                        position: parseInt(editPlayerForm.position),
+                        doublesPosition: parseInt(editPlayerForm.doublesPosition)
+                    });
+                    setEditPlayerId(null);
                 } catch (err) { checkPermissionsError(err); }
             };
 
@@ -793,8 +834,26 @@
                         ...challengeForm,
                         timestamp: Date.now()
                     });
+
+                    // AUTO-SWAP LOGIC
+                    if (autoSwap && challengeForm.winnerId === challengeForm.challengerId) {
+                        const challenger = roster.find(r => r.id === challengeForm.challengerId);
+                        const defender = roster.find(r => r.id === challengeForm.defenderId);
+                        if (challenger && defender) {
+                            await db.collection(`artifacts/${appId}/public/data/roster`).doc(challenger.id).update({ 
+                                position: defender.position, flight: defender.flight, doublesPosition: defender.doublesPosition || 1 
+                            });
+                            await db.collection(`artifacts/${appId}/public/data/roster`).doc(defender.id).update({ 
+                                position: challenger.position, flight: challenger.flight, doublesPosition: challenger.doublesPosition || 1 
+                            });
+                            alert("Challenge match logged! The challenger won, so their ladder positions were automatically swapped.");
+                        }
+                    } else {
+                        alert("Challenge match logged!");
+                    }
+
                     setChallengeForm({ date: today, challengerId: '', defenderId: '', score: '', winnerId: '' });
-                    alert("Challenge match logged! Remember to update roster positions in the 'Roster' tab if the ladder changed.");
+                    setAutoSwap(false);
                 } catch (err) { console.error(err); checkPermissionsError(err); }
             };
 
@@ -901,6 +960,10 @@
                                                 {challengeForm.challengerId && <option value={challengeForm.challengerId}>Challenger</option>}
                                                 {challengeForm.defenderId && <option value={challengeForm.defenderId}>Defender</option>}
                                             </select>
+                                        </div>
+                                        <div className="md:col-span-5 flex items-center gap-2 mt-2 bg-yellow-50 p-2 rounded border border-yellow-200">
+                                            <input type="checkbox" id="autoSwap" checked={autoSwap} onChange={(e) => setAutoSwap(e.target.checked)} className="w-4 h-4 text-[#FFB81C] bg-white border-gray-300 rounded cursor-pointer" />
+                                            <label htmlFor="autoSwap" className="text-xs font-bold text-gray-800 cursor-pointer">Auto-Swap their ladder positions on the Roster if the Challenger wins.</label>
                                         </div>
                                     </div>
                                     <button type="submit" className="mt-4 w-full bg-black text-[#FFB81C] font-black py-2 rounded shadow border border-[#FFB81C] hover:bg-gray-900 transition">Log Challenge Result</button>
@@ -1065,26 +1128,72 @@
                             <div className="glass-card p-6 border-t-4 border-blue-500">
                                 <h3 className="font-black text-lg mb-2">Add Player</h3>
                                 <p className="text-xs text-red-600 font-bold mb-4 bg-red-50 p-2 rounded inline-block">🔒 Privacy: Enter FULL name. Site will publicly truncate to First Name, Last Initial.</p>
-                                <form onSubmit={handleAddPlayer} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Full Player Name</label><input type="text" required value={playerForm.name} onChange={e=>setPlayerForm({...playerForm, name: e.target.value})} className="w-full border rounded-lg p-2" placeholder="e.g. John Smith" /></div>
+                                <form onSubmit={handleAddPlayer} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+                                    <div className="md:col-span-2"><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Full Player Name</label><input type="text" required value={playerForm.name} onChange={e=>setPlayerForm({...playerForm, name: e.target.value})} className="w-full border rounded-lg p-2" placeholder="e.g. John Smith" /></div>
                                     <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Grade</label><select value={playerForm.grade} onChange={e=>setPlayerForm({...playerForm, grade: e.target.value})} className="w-full border rounded-lg p-2"><option>9</option><option>10</option><option>11</option><option>12</option></select></div>
-                                    <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Flight</label><select value={playerForm.flight} onChange={e=>setPlayerForm({...playerForm, flight: e.target.value})} className="w-full border rounded-lg p-2"><option>Singles</option><option>Doubles</option></select></div>
-                                    <div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Line Position</label><input type="number" min="1" max="6" required value={playerForm.position} onChange={e=>setPlayerForm({...playerForm, position: e.target.value})} className="w-full border rounded-lg p-2" /></div>
-                                    <div className="md:col-span-2"><button type="submit" className="w-full bg-blue-600 text-white font-black py-3 rounded-lg hover:bg-blue-700 transition shadow-md">Add Player</button></div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Role</label>
+                                        <select value={playerForm.flight} onChange={e=>setPlayerForm({...playerForm, flight: e.target.value})} className="w-full border rounded-lg p-2">
+                                            <option value="Singles">Singles Only</option>
+                                            <option value="Doubles">Doubles Only</option>
+                                            <option value="Both">Both (Singles & Doubles)</option>
+                                        </select>
+                                    </div>
+                                    
+                                    {(playerForm.flight === 'Singles' || playerForm.flight === 'Both') && (
+                                        <div className="md:col-span-2"><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Singles/Ladder Rank (1-12)</label><input type="number" min="1" max="12" required value={playerForm.position} onChange={e=>setPlayerForm({...playerForm, position: e.target.value})} className="w-full border rounded-lg p-2" /></div>
+                                    )}
+                                    
+                                    {(playerForm.flight === 'Doubles' || playerForm.flight === 'Both') && (
+                                        <div className="md:col-span-2"><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Doubles Rank (1-12)</label><input type="number" min="1" max="12" required value={playerForm.doublesPosition} onChange={e=>setPlayerForm({...playerForm, doublesPosition: e.target.value})} className="w-full border rounded-lg p-2" /></div>
+                                    )}
+
+                                    <div className="md:col-span-2 lg:col-span-4"><button type="submit" className="w-full bg-blue-600 text-white font-black py-3 rounded-lg hover:bg-blue-700 transition shadow-md">Add Player</button></div>
                                 </form>
                             </div>
 
                             <div className="glass-card p-6">
                                 <h3 className="font-black text-lg mb-4">Current Roster</h3>
-                                <p className="text-xs text-gray-500 mb-4 bg-gray-100 p-2 rounded">Win/Loss records are now calculated automatically from Match Scorecards.</p>
+                                <p className="text-xs text-gray-500 mb-4 bg-gray-100 p-2 rounded">Win/Loss records are calculated automatically. Use "Edit Rank" to update their ladder standing.</p>
                                 <div className="space-y-2">
                                     {rosterWithStats.map(p => (
-                                        <div key={p.id} className="flex justify-between items-center p-3 bg-gray-50 border border-gray-200 rounded-lg gap-2">
-                                            <div>
-                                                <div className="font-bold text-gray-800">{p.name} <span className="text-xs font-normal text-gray-400 italic">(Displays as {formatPrivacyName(p.name)})</span></div>
-                                                <div className="text-xs text-gray-500">{p.flight} {p.position} • Record: {p.wins}-{p.losses}</div>
-                                            </div>
-                                            <button onClick={() => handleDeletePlayer(p.id)} className="bg-red-100 text-red-600 px-3 py-2 rounded font-bold hover:bg-red-200 text-sm">Remove</button>
+                                        <div key={p.id} className="flex flex-col md:flex-row justify-between items-center p-3 bg-gray-50 border border-gray-200 rounded-lg gap-2">
+                                            {editPlayerId === p.id ? (
+                                                <div className="flex-1 flex flex-wrap gap-2 items-center w-full">
+                                                    <div className="font-bold text-gray-800 w-full sm:w-1/4 truncate">{p.name}</div>
+                                                    <select value={editPlayerForm.flight} onChange={e=>setEditPlayerForm({...editPlayerForm, flight: e.target.value})} className="border rounded p-2 text-sm flex-1 font-bold">
+                                                        <option value="Singles">Singles</option>
+                                                        <option value="Doubles">Doubles</option>
+                                                        <option value="Both">Both</option>
+                                                    </select>
+                                                    
+                                                    {(editPlayerForm.flight === 'Singles' || editPlayerForm.flight === 'Both') && (
+                                                        <input type="number" min="1" max="12" value={editPlayerForm.position} onChange={e=>setEditPlayerForm({...editPlayerForm, position: e.target.value})} className="border rounded p-2 text-sm w-16 text-center font-bold" title="Singles/Ladder Rank" />
+                                                    )}
+                                                    
+                                                    {(editPlayerForm.flight === 'Doubles' || editPlayerForm.flight === 'Both') && (
+                                                        <input type="number" min="1" max="12" value={editPlayerForm.doublesPosition} onChange={e=>setEditPlayerForm({...editPlayerForm, doublesPosition: e.target.value})} className="border rounded p-2 text-sm w-16 text-center font-bold border-yellow-400" title="Doubles Rank" />
+                                                    )}
+                                                    
+                                                    <div className="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+                                                        <button onClick={() => savePlayerEdit(p.id)} className="flex-1 bg-green-100 text-green-700 px-4 py-2 rounded font-black text-xs hover:bg-green-200 border border-green-300">Save</button>
+                                                        <button onClick={() => setEditPlayerId(null)} className="flex-1 bg-gray-200 text-gray-600 px-4 py-2 rounded font-bold text-xs hover:bg-gray-300">Cancel</button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <div className="w-full sm:w-auto flex-1">
+                                                        <div className="font-bold text-gray-800">{p.name} <span className="text-xs font-normal text-gray-400 italic">(Displays as {formatPrivacyName(p.name)})</span></div>
+                                                        <div className="text-xs text-gray-500 font-medium bg-white border px-2 py-1 rounded inline-block mt-1">
+                                                            {p.flight === 'Both' ? `S${p.position} & D${p.doublesPosition || p.position}` : `${p.flight} ${p.position}`} • Record: {p.wins}-{p.losses}
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+                                                        <button onClick={() => startEditPlayer(p)} className="flex-1 sm:flex-none bg-blue-100 text-blue-800 px-4 py-2 rounded font-bold hover:bg-blue-200 text-xs border border-blue-200">Edit Rank</button>
+                                                        <button onClick={() => handleDeletePlayer(p.id)} className="flex-1 sm:flex-none bg-red-100 text-red-600 px-4 py-2 rounded font-bold hover:bg-red-200 text-xs">Remove</button>
+                                                    </div>
+                                                </>
+                                            )}
                                         </div>
                                     ))}
                                 </div>
