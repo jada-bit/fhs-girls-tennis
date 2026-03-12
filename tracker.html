@@ -31,22 +31,24 @@
     function App() {
       const [db, setDb] = useState(null);
       const [user, setUser] = useState(null);
-      const [roster, setRoster] = useState([]); // NEW: Roster state
+      const [roster, setRoster] = useState([]);
       const appId = 'fhs-girls-tennis';
 
       const urlParams = new URLSearchParams(window.location.search);
       const broadcastMatchId = urlParams.get('match');
+      const isBroadcastTest = urlParams.get('test') === 'true';
 
       const [view, setView] = useState(broadcastMatchId ? 'broadcast' : 'setup'); 
       const [matchId, setMatchId] = useState(broadcastMatchId || 'match-' + Math.random().toString(36).substr(2, 9));
       const [trackingDepth, setTrackingDepth] = useState('advanced');
+      const [isTestMode, setIsTestMode] = useState(isBroadcastTest);
       
       const [matchConfig, setMatchConfig] = useState({
-        line: 'Singles 1', // NEW: Line identification for the spectator dashboard
+        line: 'Singles 1',
         type: 'singles', 
         teamA: 'Freedom Varsity',
         teamB: 'Opponent High',
-        playerA1: '', // Now starts blank to force selection from dropdown
+        playerA1: '',
         playerA2: '',
         playerB1: 'Opponent 1',
         playerB2: '',
@@ -76,14 +78,12 @@
         return firebase.auth().onAuthStateChanged(setUser);
       }, []);
 
-      // NEW: Fetch Official Roster so tracker uses exact player names
       useEffect(() => {
           if (!user || !db) return;
           const unsub = db.collection(`artifacts/${appId}/public/data/roster`).onSnapshot(snap => {
               const r = []; snap.forEach(d => r.push({id: d.id, ...d.data()}));
               r.sort((a,b) => a.name.localeCompare(b.name));
               setRoster(r);
-              // Auto-set the first player if config is empty
               if (r.length > 0 && matchConfig.playerA1 === '') {
                   setMatchConfig(prev => ({...prev, playerA1: r[0].name}));
               }
@@ -95,27 +95,30 @@
         if (!user || !db) return;
         if (view === 'tracking' || view === 'stats') {
           const syncData = { config: matchConfig, state: currentState, timestamp: Date.now() };
-          db.collection(`artifacts/${appId}/public/data/live_matches`).doc(matchId).set(syncData);
+          const collectionName = isTestMode ? 'test_live_matches' : 'live_matches';
+          db.collection(`artifacts/${appId}/public/data/${collectionName}`).doc(matchId).set(syncData);
         }
-      }, [currentState, matchConfig, view, matchId, db, user]);
+      }, [currentState, matchConfig, view, matchId, db, user, isTestMode]);
 
       useEffect(() => {
         if (!user || !db || view !== 'broadcast') return;
-        const unsub = db.collection(`artifacts/${appId}/public/data/live_matches`).doc(matchId)
+        const collectionName = isTestMode ? 'test_live_matches' : 'live_matches';
+        const unsub = db.collection(`artifacts/${appId}/public/data/${collectionName}`).doc(matchId)
           .onSnapshot(doc => { if (doc.exists) setBroadcastState(doc.data()); });
         return () => unsub();
-      }, [view, matchId, db, user]);
+      }, [view, matchId, db, user, isTestMode]);
 
       useEffect(() => {
         if (!user || !db) return;
-        const unsub = db.collection(`artifacts/${appId}/public/data/tracked_matches`)
+        const collectionName = isTestMode ? 'test_tracked_matches' : 'tracked_matches';
+        const unsub = db.collection(`artifacts/${appId}/public/data/${collectionName}`)
           .onSnapshot(snap => {
             const matches = []; snap.forEach(doc => matches.push({ id: doc.id, ...doc.data() }));
             matches.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
             setSavedMatches(matches);
           });
         return () => unsub();
-      }, [db, user]);
+      }, [db, user, isTestMode]);
 
       const pushState = (newState) => {
         const newHistory = history.slice(0, historyIndex + 1);
@@ -186,15 +189,50 @@
         pushState(newState);
       };
 
+      const copyLiveLink = () => {
+        const baseUrl = window.location.href.split('?')[0];
+        const mockUrl = `${baseUrl}?match=${matchId}${isTestMode ? '&test=true' : ''}`;
+        navigator.clipboard.writeText(mockUrl);
+        alert(`Broadcast Link copied!\n\nText this to parents or post it to SportsYou to let fans follow the match live!\n\n${mockUrl}`);
+      };
+
+      const clearLiveFeed = async () => {
+          if (!confirm("Are you sure? This will cancel the match and instantly remove it from the live broadcast dashboard.")) return;
+          if (user && db) {
+              try {
+                  const collectionName = isTestMode ? 'test_live_matches' : 'live_matches';
+                  await db.collection(`artifacts/${appId}/public/data/${collectionName}`).doc(matchId).delete();
+              } catch (e) { console.error(e); }
+          }
+          setHistory([INITIAL_STATE]);
+          setHistoryIndex(0);
+          setView('setup');
+      };
+
       const saveMatch = async () => {
         if (!user || !db) return alert("Still connecting to Firebase... please try again in a few seconds.");
         try {
-          await db.collection(`artifacts/${appId}/public/data/tracked_matches`).add({
+          const collectionName = isTestMode ? 'test_tracked_matches' : 'tracked_matches';
+          await db.collection(`artifacts/${appId}/public/data/${collectionName}`).add({
             date: new Date().toLocaleDateString(), config: matchConfig, score: currentState.score, stats: currentState.stats, winner: currentState.matchWinner, timestamp: Date.now()
           });
-          alert("Match saved to Cloud Season History! Player advanced stats updated.");
+          
+          if (isTestMode) {
+              alert("TEST Match saved to test database. Your public stats were NOT affected.");
+          } else {
+              alert("Match saved to Cloud Season History! Player advanced stats updated.");
+          }
           setView('dashboard');
         } catch (err) { alert("Error saving match to cloud: " + err.message); }
+      };
+
+      const handleDeleteSavedMatch = async (id) => {
+          if (!confirm("Permanently delete these match stats? This will remove them from the player's advanced analytics.")) return;
+          if (!user || !db) return;
+          try {
+              const collectionName = isTestMode ? 'test_tracked_matches' : 'tracked_matches';
+              await db.collection(`artifacts/${appId}/public/data/${collectionName}`).doc(id).delete();
+          } catch (e) { alert("Error deleting: " + e.message); }
       };
 
       const getPlayerAggregates = () => {
@@ -213,6 +251,16 @@
            addStats(p1); if (match.config.type === 'doubles') addStats(p2);
         });
         return Object.entries(aggregates).sort((a, b) => b[1].wins - a[1].wins);
+      };
+
+      const generateInsights = (stats) => {
+        let insights = [];
+        if (stats.doubleFaults >= 3) insights.push({ icon: 'ph-warning-circle text-orange-400', title: 'Serve Consistency', text: `You hit ${stats.doubleFaults} double faults. In practice, prioritize a safe, spin-heavy second serve over power to stop giving away free points.` });
+        if (stats.unforcedErrors > stats.winners + 3) insights.push({ icon: 'ph-shield-check text-blue-400', title: 'Patience & Strategy', text: 'You have high unforced errors. Play more conservatively. Aim for the center of the court and let your opponent be the one to make the mistake.' });
+        else if (stats.winners > stats.unforcedErrors && stats.winners > 0) insights.push({ icon: 'ph-fire text-orange-500', title: 'Great Aggression!', text: 'You are hitting more winners than errors! Keep dictating the play and stepping into the court.' });
+        if (stats.aces >= 2) insights.push({ icon: 'ph-star text-yellow-400', title: 'Strong Serving', text: `Excellent job winning ${stats.aces} free points off aces.` });
+        if (insights.length === 0 && stats.totalPoints > 5) insights.push({ icon: 'ph-check-circle text-emerald-400', title: 'Solid Baseline Play', text: 'Keep tracking to find your specific trends. Focus on consistency and moving your feet!' });
+        return insights;
       };
 
       if (view === 'setup') {
@@ -234,7 +282,6 @@
                       <button className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${matchConfig.type === 'singles' ? 'bg-emerald-500 text-white shadow' : 'text-slate-300 hover:bg-slate-600'}`} onClick={() => setMatchConfig({...matchConfig, type: 'singles'})}>Singles</button>
                       <button className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${matchConfig.type === 'doubles' ? 'bg-emerald-500 text-white shadow' : 'text-slate-300 hover:bg-slate-600'}`} onClick={() => setMatchConfig({...matchConfig, type: 'doubles'})}>Doubles</button>
                     </div>
-                    {/* NEW: LINE SELECTOR FOR SPECTATOR DASHBOARD */}
                     <select value={matchConfig.line} onChange={(e) => setMatchConfig({...matchConfig, line: e.target.value})} className="bg-slate-900 border border-slate-700 rounded-lg px-3 text-white text-sm font-bold outline-none focus:border-emerald-500 w-1/3">
                         <option>Singles 1</option><option>Singles 2</option><option>Singles 3</option><option>Singles 4</option><option>Singles 5</option><option>Singles 6</option>
                         <option>Doubles 1</option><option>Doubles 2</option><option>Doubles 3</option>
@@ -244,8 +291,8 @@
                 <div className="space-y-3">
                   <div>
                     <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Freedom Players</label>
-                    {/* NEW: DROPDOWNS LINKED TO ROSTER FOR PLAYER ADVANCED STATS */}
                     <select value={matchConfig.playerA1} onChange={(e) => setMatchConfig({...matchConfig, playerA1: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 mt-1 text-white text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+                        <option value="">Select Player...</option>
                         {roster.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
                     </select>
                     {matchConfig.type === 'doubles' && (
@@ -272,10 +319,22 @@
                       <option value="2-sets-6">2 Sets (to 6, win by 2)</option>
                     </select>
                   </div>
+
+                  <div className="flex items-center gap-3 bg-slate-900 border border-slate-700 rounded-lg p-3 mt-2">
+                    <input type="checkbox" id="testMode" checked={isTestMode} onChange={(e) => setIsTestMode(e.target.checked)} className="w-4 h-4 cursor-pointer accent-emerald-500" />
+                    <label htmlFor="testMode" className="text-sm text-slate-300 cursor-pointer font-semibold leading-tight">
+                        Practice / Test Mode
+                        <span className="block text-[10px] text-slate-500 font-normal mt-0.5">Keeps data completely hidden from the main website.</span>
+                    </label>
+                  </div>
                 </div>
 
                 <button onClick={() => setView('tracking')} className="w-full bg-emerald-500 hover:bg-emerald-400 text-white font-bold py-3 rounded-lg mt-6 shadow-lg shadow-emerald-500/20 transition-all flex justify-center items-center">
                   Start Live Tracking <i className="ph-bold ph-activity text-xl ml-2"></i>
+                </button>
+
+                <button onClick={() => setView('dashboard')} className="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 rounded-lg mt-3 transition-all flex justify-center items-center">
+                  Cloud Season History <i className="ph-bold ph-cloud-arrow-up text-xl ml-2"></i>
                 </button>
               </div>
             </div>
@@ -283,8 +342,245 @@
         );
       }
 
-      // --- REMAINDER OF TRACKING VIEW CODE IS UNCHANGED FROM PREVIOUS BLOCK ---
-      // (For brevity in the preview block, I am outputting the functional views)
+      if (view === 'broadcast') {
+        if (!broadcastState) {
+          return (
+            <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 text-center text-slate-100">
+              <i className="ph ph-broadcast text-6xl text-slate-600 mb-4 animate-pulse"></i>
+              <h2 className="text-xl font-bold text-slate-300">Awaiting Broadcast Data...</h2>
+              <p className="text-slate-500 mt-2">Connecting to Firebase Cloud. Once the coach logs the first point, the scoreboard will appear here automatically.</p>
+            </div>
+          );
+        }
+
+        const bState = broadcastState.state;
+        const bConfig = broadcastState.config;
+        const teamAInsights = generateInsights(bState.stats.A);
+
+        return (
+          <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans">
+            <header className="bg-slate-800 p-4 border-b border-slate-700 flex justify-between items-center sticky top-0 z-10 shadow-lg">
+              <div className="flex items-center gap-2">
+                <i className="ph-fill ph-broadcast text-red-500 animate-pulse text-2xl"></i>
+                <div>
+                  <h2 className="font-bold text-sm text-white leading-tight">Live Match Broadcast</h2>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-widest">{bConfig.type} • {bConfig.format === '1-set-8' ? 'Pro Set' : '2 Sets'}</p>
+                </div>
+              </div>
+            </header>
+
+            <div className="p-4 max-w-xl mx-auto w-full space-y-4">
+              <div className="bg-slate-800 rounded-2xl border border-slate-700 shadow-xl overflow-hidden">
+                <div className="grid grid-cols-[1fr_auto_auto_auto] bg-slate-900/80 p-3 text-xs font-semibold text-slate-400 border-b border-slate-700">
+                  <div>Team / Player</div><div className="w-10 text-center">S</div><div className="w-10 text-center">G</div><div className="w-16 text-center text-emerald-400">PTS</div>
+                </div>
+
+                <div className={`grid grid-cols-[1fr_auto_auto_auto] p-4 border-b border-slate-700 items-center ${bState.server === 'A' ? 'bg-slate-700/20' : ''}`}>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${bState.server === 'A' ? 'bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.6)]' : 'bg-transparent'}`}></div>
+                    <div>
+                      <div className="font-bold text-base">{bConfig.teamA}</div>
+                      <div className="text-xs text-slate-400 mt-0.5">{bConfig.playerA1} {bConfig.type === 'doubles' && `& ${bConfig.playerA2}`}</div>
+                    </div>
+                  </div>
+                  <div className="w-10 text-center text-xl font-bold">{bState.score.A.sets}</div>
+                  <div className="w-10 text-center text-xl font-bold">{bState.score.A.games}</div>
+                  <div className="w-16 text-center text-3xl font-black text-emerald-400 tracking-tighter">{bState.score.A.points}</div>
+                </div>
+
+                <div className={`grid grid-cols-[1fr_auto_auto_auto] p-4 items-center ${bState.server === 'B' ? 'bg-slate-700/20' : ''}`}>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${bState.server === 'B' ? 'bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.6)]' : 'bg-transparent'}`}></div>
+                    <div>
+                      <div className="font-bold text-base">{bConfig.teamB}</div>
+                      <div className="text-xs text-slate-400 mt-0.5">{bConfig.playerB1} {bConfig.type === 'doubles' && `& ${bConfig.playerB2}`}</div>
+                    </div>
+                  </div>
+                  <div className="w-10 text-center text-xl font-bold">{bState.score.B.sets}</div>
+                  <div className="w-10 text-center text-xl font-bold">{bState.score.B.games}</div>
+                  <div className="w-16 text-center text-3xl font-black text-emerald-400 tracking-tighter">{bState.score.B.points}</div>
+                </div>
+              </div>
+
+              {bState.matchWinner && (
+                 <div className="bg-emerald-900/40 border border-emerald-500/50 p-4 rounded-xl text-center">
+                   <h3 className="text-xl font-black text-emerald-400">Match Complete</h3>
+                   <p className="text-slate-300 font-bold">{bState.matchWinner === 'A' ? bConfig.teamA : bConfig.teamB} wins.</p>
+                 </div>
+              )}
+
+              <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden flex flex-col h-64">
+                <div className="bg-slate-900 p-2 text-xs font-bold text-slate-400 text-center uppercase tracking-widest border-b border-slate-700">Play-by-Play Live Feed</div>
+                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                  {bState.log.map((entry, i) => (
+                    <div key={i} className={`text-sm ${i === 0 ? 'text-white font-bold' : 'text-slate-400'}`}>
+                      {i === 0 && <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-2 animate-pulse"></span>}
+                      {entry}
+                    </div>
+                  ))}
+                  {bState.log.length === 0 && <p className="text-slate-500 text-sm italic text-center">Waiting for the match to begin...</p>}
+                </div>
+              </div>
+              
+              <div className="text-center text-xs text-slate-500 mt-4 flex items-center justify-center gap-1">
+                 <i className="ph-fill ph-cloud-check text-emerald-500"></i> Syncing via Freedom Tennis Cloud
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      if (view === 'stats') {
+        const teamAInsights = generateInsights(currentState.stats.A);
+
+        return (
+          <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans">
+            <header className="bg-slate-800 p-4 border-b border-slate-700 flex justify-between items-center sticky top-0 z-10">
+              <button onClick={() => setView('tracking')} className="text-slate-400 hover:text-white flex items-center">← Back to Match</button>
+              <h2 className="font-bold text-lg flex items-center"><i className="ph-bold ph-chart-bar text-xl mr-2 text-emerald-400"></i> Match Report</h2>
+              <button className="text-emerald-400" onClick={copyLiveLink}><i className="ph-bold ph-share-network text-xl"></i></button>
+            </header>
+
+            <div className="p-4 max-w-3xl mx-auto w-full space-y-6 pb-12">
+              <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 text-center">
+                <h3 className="text-sm text-slate-400 uppercase tracking-widest mb-4">Current Score</h3>
+                <div className="flex justify-between items-center px-8">
+                  <div className="text-2xl font-bold">{matchConfig.teamA}</div>
+                  <div className="text-4xl font-black text-emerald-400 bg-slate-900 px-6 py-2 rounded-lg">
+                    {currentState.score.A.sets} - {currentState.score.B.sets}
+                  </div>
+                  <div className="text-2xl font-bold">{matchConfig.teamB}</div>
+                </div>
+                <p className="text-sm text-slate-400 mt-4">Games: {currentState.score.A.games} - {currentState.score.B.games}</p>
+              </div>
+
+              <div className="bg-gradient-to-br from-slate-800 to-slate-800/80 rounded-xl border border-emerald-500/30 overflow-hidden shadow-lg shadow-emerald-900/10">
+                <div className="bg-slate-800/80 p-3 border-b border-emerald-500/20 flex items-center">
+                  <i className="ph-fill ph-lightbulb text-xl text-emerald-400 mr-2"></i>
+                  <h3 className="font-bold text-slate-200">Coach's Insights for {matchConfig.teamA}</h3>
+                </div>
+                <div className="p-4 space-y-3">
+                  {teamAInsights.length > 0 ? (
+                    teamAInsights.map((insight, idx) => (
+                      <div key={idx} className="flex items-start bg-slate-900/50 p-3 rounded-lg border border-slate-700/50">
+                        <i className={`${insight.icon} text-2xl mr-3 mt-0.5`}></i>
+                        <div>
+                          <h4 className="font-bold text-sm text-slate-200">{insight.title}</h4>
+                          <p className="text-sm text-slate-400 mt-1 leading-relaxed">{insight.text}</p>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-slate-500 italic text-center p-2">Play a few more points to generate personalized coaching insights!</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+                <div className="grid grid-cols-3 bg-slate-900 p-3 text-sm font-semibold text-slate-400 border-b border-slate-700">
+                  <div className="text-left">{matchConfig.teamA}</div><div className="text-center">Stat</div><div className="text-right">{matchConfig.teamB}</div>
+                </div>
+                
+                {[
+                  { label: 'Total Points Won', key: 'totalPoints' },
+                  { label: 'Winners', key: 'winners' },
+                  { label: 'Unforced Errors', key: 'unforcedErrors', invertColors: true },
+                  { label: 'Forced Errors', key: 'forcedErrors', invertColors: true },
+                  { label: 'Aces', key: 'aces' },
+                  { label: 'Double Faults', key: 'doubleFaults', invertColors: true }
+                ].map((stat, idx) => {
+                  const valA = currentState.stats.A[stat.key]; const valB = currentState.stats.B[stat.key];
+                  const total = valA + valB || 1; const pctA = (valA / total) * 100; const pctB = (valB / total) * 100;
+                  let colorA = 'bg-emerald-500'; let colorB = 'bg-slate-600';
+                  if (stat.invertColors) {
+                    if (valA > valB) { colorA = 'bg-red-500'; colorB = 'bg-emerald-500'; } else if (valB > valA) { colorA = 'bg-emerald-500'; colorB = 'bg-red-500'; } else { colorA = 'bg-slate-500'; colorB = 'bg-slate-500'; }
+                  } else {
+                    if (valA > valB) { colorA = 'bg-emerald-500'; colorB = 'bg-slate-600'; } else if (valB > valA) { colorA = 'bg-slate-600'; colorB = 'bg-emerald-500'; } else { colorA = 'bg-slate-500'; colorB = 'bg-slate-500'; }
+                  }
+
+                  return (
+                    <div key={idx} className="grid grid-cols-3 p-4 border-b border-slate-700/50 items-center hover:bg-slate-700/30 transition-colors">
+                      <div className="text-left text-xl font-bold">{valA}</div><div className="text-center text-sm text-slate-400">{stat.label}</div><div className="text-right text-xl font-bold">{valB}</div>
+                      <div className="col-span-3 h-1.5 flex mt-2 rounded-full overflow-hidden bg-slate-900">
+                        <div className={`h-full ${colorA}`} style={{ width: `${pctA}%` }}></div>
+                        <div className={`h-full ${colorB}`} style={{ width: `${pctB}%` }}></div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {currentState.matchWinner && (
+                <button onClick={saveMatch} className="w-full mt-6 bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl shadow-lg shadow-blue-900/20 transition-all flex justify-center items-center">
+                  <i className="ph-bold ph-cloud-arrow-up text-xl mr-2"></i> Save Match to Cloud History
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      if (view === 'dashboard') {
+        const playerStats = getPlayerAggregates();
+
+        return (
+          <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans">
+            <header className="bg-slate-800 p-4 border-b border-slate-700 flex justify-between items-center sticky top-0 z-10">
+              <button onClick={() => setView('setup')} className="text-slate-400 hover:text-white flex items-center">← Back to Home</button>
+              <h2 className="font-bold text-lg flex items-center"><i className="ph-bold ph-books text-xl mr-2 text-emerald-400"></i> {isTestMode ? 'Test Dashboard' : 'Cloud Season Dashboard'}</h2>
+              <div className="w-8"></div>
+            </header>
+
+            <div className="p-4 max-w-4xl mx-auto w-full space-y-8 pb-12">
+              <section>
+                <h3 className="text-xl font-bold mb-4 flex items-center text-emerald-400"><i className="ph-fill ph-ranking text-2xl mr-2"></i> Tracked Player Leaderboard</h3>
+                <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-lg overflow-x-auto">
+                  <table className="w-full text-sm text-left whitespace-nowrap">
+                    <thead className="bg-slate-900 text-slate-400 uppercase font-semibold text-xs">
+                      <tr><th className="px-4 py-3">Player</th><th className="px-4 py-3 text-center">Tracked Matches</th><th className="px-4 py-3 text-center text-emerald-400">Wins</th><th className="px-4 py-3 text-center">Winners</th><th className="px-4 py-3 text-center">Aces</th><th className="px-4 py-3 text-center text-red-400">UF Errors</th></tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-700">
+                      {playerStats.length > 0 ? playerStats.map(([player, stats], idx) => (
+                        <tr key={idx} className="hover:bg-slate-700/30 transition-colors">
+                          <td className="px-4 py-3 font-bold text-white">{player}</td><td className="px-4 py-3 text-center">{stats.matches}</td><td className="px-4 py-3 text-center font-bold text-emerald-400">{stats.wins}</td><td className="px-4 py-3 text-center">{stats.winners}</td><td className="px-4 py-3 text-center">{stats.aces}</td><td className="px-4 py-3 text-center text-red-400">{stats.unforced}</td>
+                        </tr>
+                      )) : (<tr><td colSpan="6" className="px-4 py-8 text-center text-slate-500 italic">No cloud stats recorded yet. Complete and save a match to build the database!</td></tr>)}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section>
+                <h3 className="text-xl font-bold mb-4 flex items-center text-blue-400">
+                  <i className="ph-fill ph-clock-counter-clockwise text-2xl mr-2"></i> Cloud Match History
+                </h3>
+                <div className="space-y-3">
+                  {savedMatches.length > 0 ? savedMatches.map((match) => (
+                    <div key={match.id} className="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-md flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+                      <div>
+                        <div className="text-xs text-slate-400 mb-1">{match.date} • {match.config.type.toUpperCase()} {isTestMode && <span className="text-emerald-400 ml-2">(Test Mode)</span>}</div>
+                        <div className="font-bold flex items-center gap-2 text-sm sm:text-base">
+                          <span className={match.winner === 'A' ? 'text-emerald-400' : 'text-slate-300'}>{match.config.teamA} ({match.config.playerA1}{match.config.playerA2 ? ` & ${match.config.playerA2}` : ''})</span>
+                          <span className="text-slate-500 text-sm">vs</span>
+                          <span className={match.winner === 'B' ? 'text-emerald-400' : 'text-slate-300'}>{match.config.teamB}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-4">
+                        <div className="text-lg font-black bg-slate-900 px-3 py-1 rounded border border-slate-700 inline-block">{match.score.A.sets} - {match.score.B.sets}</div>
+                        <button onClick={() => handleDeleteSavedMatch(match.id)} className="text-xs bg-red-900/50 text-red-400 hover:bg-red-900/80 hover:text-red-300 px-3 py-2 rounded-lg font-bold transition">Delete</button>
+                      </div>
+                    </div>
+                  )) : (
+                    <div className="bg-slate-800 p-8 rounded-xl border border-slate-700 text-center text-slate-500 italic">No matches found in Freedom Tennis Cloud.</div>
+                  )}
+                </div>
+              </section>
+
+            </div>
+          </div>
+        );
+      }
+
       return (
         <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans">
           <header className="bg-slate-800 p-3 sm:p-4 border-b border-slate-700 flex justify-between items-center sticky top-0 z-10">
@@ -296,7 +592,7 @@
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <button onClick={() => setView('dashboard')} className="text-slate-400 hover:text-emerald-400 transition-colors p-2 text-xs font-bold uppercase tracking-widest border border-slate-700 rounded-lg px-3">End Match</button>
+              <button onClick={clearLiveFeed} className="text-red-400 hover:bg-red-900/40 transition-colors p-2 text-xs font-bold uppercase tracking-widest border border-red-500/30 rounded-lg px-3 shadow-md">Clear Match</button>
             </div>
           </header>
 
@@ -345,8 +641,9 @@
               <div className="absolute inset-0 z-10 bg-slate-900/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 rounded-xl border border-emerald-500/30 m-2 sm:m-4">
                 <i className="ph-fill ph-trophy text-6xl text-emerald-400 mb-4"></i>
                 <h2 className="text-2xl font-bold text-white mb-2">Match Complete!</h2>
-                <div className="flex gap-4 w-full mt-6">
-                  <button onClick={saveMatch} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 px-4 rounded-xl transition-colors shadow-lg">Save Stats to Cloud</button>
+                <div className="flex flex-col gap-3 w-full mt-6 max-w-sm">
+                  <button onClick={saveMatch} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 px-4 rounded-xl transition-colors shadow-lg">Save Stats to Cloud</button>
+                  <button onClick={clearLiveFeed} className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3 px-4 rounded-xl border border-slate-700 transition-colors">Dismiss Without Saving</button>
                 </div>
               </div>
             )}
