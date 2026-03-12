@@ -281,7 +281,19 @@
         };
 
         // --- VIEWS ---
-        const HomeView = ({ announcements, awards, teamWins, teamLosses, pastMatches, nextMatch, setView, expandedMatch, setExpandedMatch, roster, liveMatches }) => (
+        const HomeView = ({ announcements, awards, teamWins, teamLosses, pastMatches, nextMatch, setView, expandedMatch, setExpandedMatch, roster, liveMatches }) => {
+            const [selectedLiveMatch, setSelectedLiveMatch] = React.useState(null);
+
+            // Keep the modal in sync if a point happens while the parent is watching
+            React.useEffect(() => {
+                if (selectedLiveMatch && liveMatches) {
+                    const updatedMatch = liveMatches.find(m => m.id === selectedLiveMatch.id);
+                    if (updatedMatch) setSelectedLiveMatch(updatedMatch);
+                    else setSelectedLiveMatch(null); // Close if match ends/clears
+                }
+            }, [liveMatches]);
+
+            return (
             <div className="space-y-6 animate-slide-up">
                 {announcements.length > 0 && (
                     <div className="bg-yellow-100 border-l-4 border-[#FFB81C] p-4 rounded-r-lg shadow-sm">
@@ -302,7 +314,11 @@
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {liveMatches.map(lm => (
-                                <div key={lm.id} className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+                                <div key={lm.id} onClick={() => setSelectedLiveMatch(lm)} className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden cursor-pointer hover:border-[#FFB81C] transition-colors relative group">
+                                    <div className="absolute inset-0 bg-black/60 hidden group-hover:flex items-center justify-center backdrop-blur-[2px] z-20 transition-all">
+                                        <span className="text-white font-bold bg-[#FFB81C]/20 text-[#FFB81C] px-3 py-1.5 rounded-full border border-[#FFB81C]/50 text-sm flex items-center gap-2"><Icons.Activity /> View Play-by-Play</span>
+                                    </div>
+                                    
                                     <div className="bg-slate-950 p-2 text-xs font-bold text-slate-300 flex justify-between items-center border-b border-slate-700">
                                         <span className="text-[#FFB81C] uppercase">{lm.config.line || 'Match'}</span>
                                         <span className="text-slate-500">{lm.config.format === '1-set-8' ? 'Pro Set' : '2 Sets'}</span>
@@ -446,8 +462,71 @@
                         </div>
                     </div>
                 )}
+
+                {/* MODAL: LIVE PLAY-BY-PLAY */}
+                {selectedLiveMatch && (
+                    <div className="modal-overlay" onClick={() => setSelectedLiveMatch(null)}>
+                        <div className="modal-content bg-slate-900 border border-slate-700 text-slate-100 max-w-lg p-0 overflow-hidden" onClick={e => e.stopPropagation()}>
+                            <header className="bg-slate-800 p-4 border-b border-slate-700 flex justify-between items-center">
+                                <div className="flex items-center gap-2">
+                                    <i className="ph-fill ph-broadcast text-red-500 animate-pulse text-2xl"></i>
+                                    <div>
+                                        <h2 className="font-bold text-sm text-white leading-tight">{selectedLiveMatch.config.line} • Live Broadcast</h2>
+                                        <p className="text-[10px] text-slate-400 uppercase tracking-widest">{selectedLiveMatch.config.type} • {selectedLiveMatch.config.format === '1-set-8' ? 'Pro Set' : '2 Sets'}</p>
+                                    </div>
+                                </div>
+                                <button onClick={() => setSelectedLiveMatch(null)} className="text-gray-400 hover:text-white text-2xl font-black">✕</button>
+                            </header>
+
+                            <div className="p-4 space-y-4">
+                                <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+                                    <div className="grid grid-cols-[1fr_auto_auto_auto] bg-slate-900/80 p-3 text-xs font-semibold text-slate-400 border-b border-slate-700">
+                                        <div>Team / Player</div><div className="w-10 text-center">S</div><div className="w-10 text-center">G</div><div className="w-16 text-center text-emerald-400">PTS</div>
+                                    </div>
+                                    <div className={`grid grid-cols-[1fr_auto_auto_auto] p-4 border-b border-slate-700 items-center ${selectedLiveMatch.state.server === 'A' ? 'bg-slate-700/20' : ''}`}>
+                                        <div className="flex items-center gap-2">
+                                            <div className={`w-2 h-2 rounded-full ${selectedLiveMatch.state.server === 'A' ? 'bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.6)]' : 'bg-transparent'}`}></div>
+                                            <div>
+                                                <div className="font-bold text-base text-white">{selectedLiveMatch.config.teamA}</div>
+                                                <div className="text-xs text-slate-400 mt-0.5">{selectedLiveMatch.config.playerA1} {selectedLiveMatch.config.type === 'doubles' && `& ${selectedLiveMatch.config.playerA2}`}</div>
+                                            </div>
+                                        </div>
+                                        <div className="w-10 text-center text-xl font-bold">{selectedLiveMatch.state.score.A.sets}</div>
+                                        <div className="w-10 text-center text-xl font-bold">{selectedLiveMatch.state.score.A.games}</div>
+                                        <div className="w-16 text-center text-3xl font-black text-emerald-400 tracking-tighter">{selectedLiveMatch.state.score.A.points}</div>
+                                    </div>
+                                    <div className={`grid grid-cols-[1fr_auto_auto_auto] p-4 items-center ${selectedLiveMatch.state.server === 'B' ? 'bg-slate-700/20' : ''}`}>
+                                        <div className="flex items-center gap-2">
+                                            <div className={`w-2 h-2 rounded-full ${selectedLiveMatch.state.server === 'B' ? 'bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.6)]' : 'bg-transparent'}`}></div>
+                                            <div>
+                                                <div className="font-bold text-base text-white">{selectedLiveMatch.config.teamB}</div>
+                                                <div className="text-xs text-slate-400 mt-0.5">{selectedLiveMatch.config.playerB1} {selectedLiveMatch.config.type === 'doubles' && `& ${selectedLiveMatch.config.playerB2}`}</div>
+                                            </div>
+                                        </div>
+                                        <div className="w-10 text-center text-xl font-bold">{selectedLiveMatch.state.score.B.sets}</div>
+                                        <div className="w-10 text-center text-xl font-bold">{selectedLiveMatch.state.score.B.games}</div>
+                                        <div className="w-16 text-center text-3xl font-black text-emerald-400 tracking-tighter">{selectedLiveMatch.state.score.B.points}</div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden flex flex-col h-64">
+                                    <div className="bg-slate-900 p-2 text-xs font-bold text-slate-400 text-center uppercase tracking-widest border-b border-slate-700">Play-by-Play Live Feed</div>
+                                    <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                                        {selectedLiveMatch.state.log.map((entry, i) => (
+                                            <div key={i} className={`text-sm ${i === 0 ? 'text-white font-bold' : 'text-slate-400'}`}>
+                                                {i === 0 && <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-2 animate-pulse"></span>}
+                                                {entry}
+                                            </div>
+                                        ))}
+                                        {selectedLiveMatch.state.log.length === 0 && <p className="text-slate-500 text-sm italic text-center">Waiting for the match to begin...</p>}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
-        );
+        )};
 
         const ScheduleView = ({ upcomingMatches, pastMatches, expandedMatch, setExpandedMatch, roster }) => (
             <div className="animate-slide-up space-y-6">
