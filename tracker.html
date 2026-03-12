@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>FHS Tennis Tracker</title>
+  
+  <!-- Tailwind CSS for Styling -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Phosphor Icons -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+  <!-- React & ReactDOM (Browser Versions) -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  
+  <!-- Babel (To compile React JSX in the browser) -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    /* Prevent pull-to-refresh on mobile devices while tracking */
+    body { overscroll-behavior-y: contain; }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans min-h-screen">
+
+  <!-- The app will render inside this div -->
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    const INITIAL_STATE = {
+      score: {
+        A: { points: '0', games: 0, sets: 0 },
+        B: { points: '0', games: 0, sets: 0 }
+      },
+      stats: {
+        A: { totalPoints: 0, winners: 0, unforcedErrors: 0, forcedErrors: 0, aces: 0, doubleFaults: 0 },
+        B: { totalPoints: 0, winners: 0, unforcedErrors: 0, forcedErrors: 0, aces: 0, doubleFaults: 0 }
+      },
+      server: 'A',
+      log: [],
+      matchWinner: null
+    };
+
+    function App() {
+      const [view, setView] = useState('setup'); // setup, tracking, stats
+      const [trackingDepth, setTrackingDepth] = useState('advanced'); // basic, advanced
+      const [matchConfig, setMatchConfig] = useState({
+        type: 'singles', // singles, doubles
+        teamA: 'FHS Varsity',
+        teamB: 'Opponent High',
+        playerA1: 'Player 1',
+        playerA2: '',
+        playerB1: 'Opponent 1',
+        playerB2: '',
+        format: '1-set-8'
+      });
+
+      const [history, setHistory] = useState([INITIAL_STATE]);
+      const [historyIndex, setHistoryIndex] = useState(0);
+
+      const currentState = history[historyIndex];
+
+      const pushState = (newState) => {
+        const newHistory = history.slice(0, historyIndex + 1);
+        setHistory([...newHistory, newState]);
+        setHistoryIndex(newHistory.length);
+      };
+
+      const undo = () => {
+        if (historyIndex > 0) {
+          setHistoryIndex(historyIndex - 1);
+        }
+      };
+
+      const handlePoint = (winningTeam, statType) => {
+        const losingTeam = winningTeam === 'A' ? 'B' : 'A';
+        let newState = JSON.parse(JSON.stringify(currentState)); 
+
+        // 1. Update Stats
+        newState.stats[winningTeam].totalPoints += 1;
+        
+        if (statType === 'winner') newState.stats[winningTeam].winners += 1;
+        if (statType === 'ace') newState.stats[winningTeam].aces += 1;
+        if (statType === 'unforced') newState.stats[losingTeam].unforcedErrors += 1;
+        if (statType === 'forced') newState.stats[losingTeam].forcedErrors += 1;
+        if (statType === 'doubleFault') newState.stats[losingTeam].doubleFaults += 1;
+
+        // Generate Log Message
+        const teamName = winningTeam === 'A' ? matchConfig.teamA : matchConfig.teamB;
+        const actionText = {
+          'winner': 'hits a Winner!',
+          'ace': 'fires an Ace!',
+          'unforced': 'wins point on opponent\'s Unforced Error.',
+          'forced': 'forces an Error.',
+          'doubleFault': 'wins point on opponent\'s Double Fault.',
+          'basic': 'wins the point.'
+        }[statType];
+        
+        newState.log.unshift(`[${newState.score.A.points}-${newState.score.B.points}] ${teamName} ${actionText}`);
+
+        // 2. Tennis Scoring Logic
+        let pW = newState.score[winningTeam].points;
+        let pL = newState.score[losingTeam].points;
+
+        if (pW === '0') pW = '15';
+        else if (pW === '15') pW = '30';
+        else if (pW === '30') pW = '40';
+        else if (pW === '40') {
+          if (pL === '40') {
+            pW = 'Ad'; // Deuce -> Ad
+          } else if (pL === 'Ad') {
+            pW = '40'; // Ad -> Deuce
+            pL = '40';
+          } else {
+            // Game Won
+            pW = '0';
+            pL = '0';
+            newState.score[winningTeam].games += 1;
+            newState.server = newState.server === 'A' ? 'B' : 'A'; // Switch server
+            newState.log.unshift(`🏆 ${teamName} wins the game.`);
+          }
+        } else if (pW === 'Ad') {
+          // Game Won
+          pW = '0';
+          pL = '0';
+          newState.score[winningTeam].games += 1;
+          newState.server = newState.server === 'A' ? 'B' : 'A'; // Switch server
+          newState.log.unshift(`🏆 ${teamName} wins the game.`);
+        }
+
+        newState.score[winningTeam].points = pW;
+        newState.score[losingTeam].points = pL;
+
+        // Auto Set winning logic
+        const targetGames = matchConfig.format === '1-set-8' ? 8 : 6;
+        const setsToWin = matchConfig.format === '1-set-8' ? 1 : 2;
+        
+        if (newState.score[winningTeam].games >= targetGames && (newState.score[winningTeam].games - newState.score[losingTeam].games >= 2)) {
+          newState.score[winningTeam].sets += 1;
+          newState.score.A.games = 0;
+          newState.score.B.games = 0;
+          newState.log.unshift(`🎉 ${teamName} wins the set!`);
+
+          if (newState.score[winningTeam].sets >= setsToWin) {
+            newState.matchWinner = winningTeam;
+            newState.log.unshift(`🏆 ${teamName} WINS THE MATCH!`);
+          }
+        }
+
+        pushState(newState);
+      };
+
+      const overrideScore = (team, type, amount) => {
+        let newState = JSON.parse(JSON.stringify(currentState));
+        if (type === 'games') newState.score[team].games = Math.max(0, newState.score[team].games + amount);
+        if (type === 'sets') {
+          newState.score[team].sets = Math.max(0, newState.score[team].sets + amount);
+          const setsToWin = matchConfig.format === '1-set-8' ? 1 : 2;
+          if (newState.score[team].sets >= setsToWin) {
+            newState.matchWinner = team;
+          } else {
+            newState.matchWinner = null;
+          }
+        }
+        newState.log.unshift(`[Manual Override] Adjusted ${matchConfig['team'+team]} ${type}.`);
+        pushState(newState);
+      };
+
+      const setManualServer = (team) => {
+        if (currentState.server === team) return;
+        let newState = JSON.parse(JSON.stringify(currentState));
+        newState.server = team;
+        newState.log.unshift(`[Manual Override] Server changed to ${team === 'A' ? matchConfig.teamA : matchConfig.teamB}.`);
+        pushState(newState);
+      };
+
+      const copyLiveLink = () => {
+        const mockUrl = `https://jada-bit.github.io/fhs-girls-tennis/live-match`;
+        navigator.clipboard.writeText(mockUrl);
+        alert(`Link copied!\n\n${mockUrl}`);
+      };
+
+      // --- VIEWS ---
+
+      if (view === 'setup') {
+        return (
+          <div className="min-h-screen bg-slate-900 text-slate-100 flex items-center justify-center p-4 font-sans">
+            <div className="max-w-md w-full bg-slate-800 rounded-2xl shadow-2xl p-6 border border-slate-700">
+              <div className="flex justify-center mb-6">
+                <div className="bg-emerald-500 p-3 rounded-full shadow-lg shadow-emerald-500/30">
+                  <i className="ph-fill ph-trophy text-3xl text-white"></i>
+                </div>
+              </div>
+              <h1 className="text-2xl font-bold text-center mb-2">FHS Tennis Tracker</h1>
+              <p className="text-slate-400 text-center mb-8 text-sm">Live Match Analytics</p>
+
+              <div className="space-y-4">
+                <div className="bg-slate-700/50 p-1 rounded-lg flex">
+                  <button 
+                    className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${matchConfig.type === 'singles' ? 'bg-emerald-500 text-white shadow' : 'text-slate-300 hover:bg-slate-600'}`}
+                    onClick={() => setMatchConfig({...matchConfig, type: 'singles'})}
+                  >
+                    <i className="ph-fill ph-user text-base inline mr-1 relative top-0.5"></i> Singles
+                  </button>
+                  <button 
+                    className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${matchConfig.type === 'doubles' ? 'bg-emerald-500 text-white shadow' : 'text-slate-300 hover:bg-slate-600'}`}
+                    onClick={() => setMatchConfig({...matchConfig, type: 'doubles'})}
+                  >
+                    <i className="ph-fill ph-users text-base inline mr-1 relative top-0.5"></i> Doubles
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Your Team (Home)</label>
+                    <input 
+                      type="text" 
+                      value={matchConfig.teamA}
+                      onChange={(e) => setMatchConfig({...matchConfig, teamA: e.target.value})}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 mt-1 text-white focus:ring-2 focus:ring-emerald-500 outline-none" 
+                    />
+                    <input 
+                      type="text" 
+                      value={matchConfig.playerA1}
+                      onChange={(e) => setMatchConfig({...matchConfig, playerA1: e.target.value})}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 mt-2 text-white text-sm focus:ring-2 focus:ring-emerald-500 outline-none" 
+                      placeholder="Player 1 Name"
+                    />
+                    {matchConfig.type === 'doubles' && (
+                      <input 
+                        type="text" 
+                        value={matchConfig.playerA2}
+                        onChange={(e) => setMatchConfig({...matchConfig, playerA2: e.target.value})}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 mt-2 text-white text-sm focus:ring-2 focus:ring-emerald-500 outline-none" 
+                        placeholder="Player 2 Name"
+                      />
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Opponent (Away)</label>
+                    <input 
+                      type="text" 
+                      value={matchConfig.teamB}
+                      onChange={(e) => setMatchConfig({...matchConfig, teamB: e.target.value})}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 mt-1 text-white focus:ring-2 focus:ring-emerald-500 outline-none" 
+                      placeholder="e.g. Tigers High"
+                    />
+                    <input 
+                      type="text" 
+                      value={matchConfig.playerB1}
+                      onChange={(e) => setMatchConfig({...matchConfig, playerB1: e.target.value})}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 mt-2 text-white text-sm focus:ring-2 focus:ring-emerald-500 outline-none" 
+                      placeholder="Player 1 Name"
+                    />
+                    {matchConfig.type === 'doubles' && (
+                      <input 
+                        type="text" 
+                        value={matchConfig.playerB2}
+                        onChange={(e) => setMatchConfig({...matchConfig, playerB2: e.target.value})}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 mt-2 text-white text-sm focus:ring-2 focus:ring-emerald-500 outline-none" 
+                        placeholder="Player 2 Name"
+                      />
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Match Format</label>
+                    <select
+                      value={matchConfig.format}
+                      onChange={(e) => setMatchConfig({...matchConfig, format: e.target.value})}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 mt-1 text-white focus:ring-2 focus:ring-emerald-500 outline-none appearance-none"
+                    >
+                      <option value="1-set-8">1 Pro Set (to 8, win by 2)</option>
+                      <option value="2-sets-6">2 Sets (to 6, win by 2)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <button 
+                  onClick={() => setView('tracking')}
+                  className="w-full bg-emerald-500 hover:bg-emerald-400 text-white font-bold py-3 rounded-lg mt-6 shadow-lg shadow-emerald-500/20 transition-all flex justify-center items-center"
+                >
+                  Start Live Tracking <i className="ph-bold ph-activity text-xl ml-2"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      if (view === 'stats') {
+        return (
+          <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans">
+            <header className="bg-slate-800 p-4 border-b border-slate-700 flex justify-between items-center sticky top-0 z-10">
+              <button onClick={() => setView('tracking')} className="text-slate-400 hover:text-white flex items-center">
+                ← Back to Match
+              </button>
+              <h2 className="font-bold text-lg flex items-center"><i className="ph-bold ph-chart-bar text-xl mr-2 text-emerald-400"></i> Match Report</h2>
+              <button className="text-emerald-400" onClick={copyLiveLink}><i className="ph-bold ph-share-network text-xl"></i></button>
+            </header>
+
+            <div className="p-4 max-w-3xl mx-auto w-full space-y-6">
+              <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 text-center">
+                <h3 className="text-sm text-slate-400 uppercase tracking-widest mb-4">Current Score</h3>
+                <div className="flex justify-between items-center px-8">
+                  <div className="text-2xl font-bold">{matchConfig.teamA}</div>
+                  <div className="text-4xl font-black text-emerald-400 bg-slate-900 px-6 py-2 rounded-lg">
+                    {currentState.score.A.sets} - {currentState.score.B.sets}
+                  </div>
+                  <div className="text-2xl font-bold">{matchConfig.teamB}</div>
+                </div>
+                <p className="text-sm text-slate-400 mt-4">Games: {currentState.score.A.games} - {currentState.score.B.games}</p>
+              </div>
+
+              <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+                <div className="grid grid-cols-3 bg-slate-900 p-3 text-sm font-semibold text-slate-400 border-b border-slate-700">
+                  <div className="text-left">{matchConfig.teamA}</div>
+                  <div className="text-center">Stat</div>
+                  <div className="text-right">{matchConfig.teamB}</div>
+                </div>
+                
+                {[
+                  { label: 'Total Points Won', key: 'totalPoints' },
+                  { label: 'Winners', key: 'winners' },
+                  { label: 'Unforced Errors', key: 'unforcedErrors', invertColors: true },
+                  { label: 'Forced Errors', key: 'forcedErrors', invertColors: true },
+                  { label: 'Aces', key: 'aces' },
+                  { label: 'Double Faults', key: 'doubleFaults', invertColors: true }
+                ].map((stat, idx) => {
+                  const valA = currentState.stats.A[stat.key];
+                  const valB = currentState.stats.B[stat.key];
+                  const total = valA + valB || 1; // Prevent divide by zero
+                  const pctA = (valA / total) * 100;
+                  const pctB = (valB / total) * 100;
+
+                  let colorA = 'bg-emerald-500';
+                  let colorB = 'bg-slate-600';
+                  
+                  if (stat.invertColors) {
+                    if (valA > valB) { colorA = 'bg-red-500'; colorB = 'bg-emerald-500'; }
+                    else if (valB > valA) { colorA = 'bg-emerald-500'; colorB = 'bg-red-500'; }
+                    else { colorA = 'bg-slate-500'; colorB = 'bg-slate-500'; }
+                  } else {
+                    if (valA > valB) { colorA = 'bg-emerald-500'; colorB = 'bg-slate-600'; }
+                    else if (valB > valA) { colorA = 'bg-slate-600'; colorB = 'bg-emerald-500'; }
+                    else { colorA = 'bg-slate-500'; colorB = 'bg-slate-500'; }
+                  }
+
+                  return (
+                    <div key={idx} className="grid grid-cols-3 p-4 border-b border-slate-700/50 items-center hover:bg-slate-700/30 transition-colors">
+                      <div className="text-left text-xl font-bold">{valA}</div>
+                      <div className="text-center text-sm text-slate-400">{stat.label}</div>
+                      <div className="text-right text-xl font-bold">{valB}</div>
+                      
+                      <div className="col-span-3 h-1.5 flex mt-2 rounded-full overflow-hidden bg-slate-900">
+                        <div className={`h-full ${colorA}`} style={{ width: `${pctA}%` }}></div>
+                        <div className={`h-full ${colorB}`} style={{ width: `${pctB}%` }}></div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // --- TRACKING VIEW ---
+
+      return (
+        <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans">
+          <header className="bg-slate-800 p-3 sm:p-4 border-b border-slate-700 flex justify-between items-center sticky top-0 z-10">
+            <div className="flex items-center gap-2">
+              <div className="bg-emerald-500/20 p-1.5 rounded-md">
+                <i className="ph-fill ph-trophy text-xl text-emerald-400"></i>
+              </div>
+              <div className="flex flex-col">
+                 <span className="text-xs text-emerald-400 font-bold tracking-wider uppercase leading-none">Live Match</span>
+                 <span className="text-sm font-medium leading-tight">High School League</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <button onClick={copyLiveLink} className="text-slate-400 hover:text-emerald-400 transition-colors p-2">
+                <i className="ph-bold ph-share-network text-xl"></i>
+              </button>
+              <button onClick={() => setView('stats')} className="text-slate-400 hover:text-emerald-400 transition-colors p-2">
+                <i className="ph-bold ph-chart-bar text-xl"></i>
+              </button>
+            </div>
+          </header>
+
+          <div className="flex-none p-2 sm:p-4">
+            <div className="bg-slate-800 rounded-2xl border border-slate-700 shadow-xl overflow-hidden">
+              <div className="grid grid-cols-[1fr_auto_auto_auto] bg-slate-900/80 p-2 sm:p-3 text-xs sm:text-sm font-semibold text-slate-400 border-b border-slate-700">
+                <div>Team / Player</div>
+                <div className="w-12 text-center">S</div>
+                <div className="w-12 text-center">G</div>
+                <div className="w-16 text-center text-emerald-400">PTS</div>
+              </div>
+
+              <div className={`grid grid-cols-[1fr_auto_auto_auto] p-2 sm:p-4 border-b border-slate-700 items-center transition-colors ${currentState.server === 'A' ? 'bg-slate-700/20' : ''}`}>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => setManualServer('A')}
+                    className={`w-3 h-3 rounded-full flex-shrink-0 transition-all ${currentState.server === 'A' ? 'bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.6)]' : 'bg-slate-700 hover:bg-slate-500'}`}
+                  ></button>
+                  <div>
+                    <div className="font-bold text-sm sm:text-base leading-tight">{matchConfig.teamA}</div>
+                    <div className="text-xs text-slate-400 mt-0.5">{matchConfig.playerA1} {matchConfig.type === 'doubles' && `& ${matchConfig.playerA2}`}</div>
+                  </div>
+                </div>
+                <div className="w-12 flex flex-col items-center">
+                  <button onClick={() => overrideScore('A', 'sets', 1)} className="text-slate-500 hover:text-white"><i className="ph-bold ph-plus text-sm"></i></button>
+                  <div className="text-xl font-bold">{currentState.score.A.sets}</div>
+                  <button onClick={() => overrideScore('A', 'sets', -1)} className="text-slate-500 hover:text-white"><i className="ph-bold ph-minus text-sm"></i></button>
+                </div>
+                <div className="w-12 flex flex-col items-center">
+                  <button onClick={() => overrideScore('A', 'games', 1)} className="text-slate-500 hover:text-white"><i className="ph-bold ph-plus text-sm"></i></button>
+                  <div className="text-xl font-bold">{currentState.score.A.games}</div>
+                  <button onClick={() => overrideScore('A', 'games', -1)} className="text-slate-500 hover:text-white"><i className="ph-bold ph-minus text-sm"></i></button>
+                </div>
+                <div className="w-16 text-center text-2xl sm:text-3xl font-black text-emerald-400 tracking-tighter">
+                  {currentState.score.A.points}
+                </div>
+              </div>
+
+              <div className={`grid grid-cols-[1fr_auto_auto_auto] p-2 sm:p-4 items-center transition-colors ${currentState.server === 'B' ? 'bg-slate-700/20' : ''}`}>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => setManualServer('B')}
+                    className={`w-3 h-3 rounded-full flex-shrink-0 transition-all ${currentState.server === 'B' ? 'bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.6)]' : 'bg-slate-700 hover:bg-slate-500'}`}
+                  ></button>
+                  <div>
+                    <div className="font-bold text-sm sm:text-base leading-tight">{matchConfig.teamB}</div>
+                    <div className="text-xs text-slate-400 mt-0.5">{matchConfig.playerB1} {matchConfig.type === 'doubles' && `& ${matchConfig.playerB2}`}</div>
+                  </div>
+                </div>
+                <div className="w-12 flex flex-col items-center">
+                  <button onClick={() => overrideScore('B', 'sets', 1)} className="text-slate-500 hover:text-white"><i className="ph-bold ph-plus text-sm"></i></button>
+                  <div className="text-xl font-bold">{currentState.score.B.sets}</div>
+                  <button onClick={() => overrideScore('B', 'sets', -1)} className="text-slate-500 hover:text-white"><i className="ph-bold ph-minus text-sm"></i></button>
+                </div>
+                <div className="w-12 flex flex-col items-center">
+                  <button onClick={() => overrideScore('B', 'games', 1)} className="text-slate-500 hover:text-white"><i className="ph-bold ph-plus text-sm"></i></button>
+                  <div className="text-xl font-bold">{currentState.score.B.games}</div>
+                  <button onClick={() => overrideScore('B', 'games', -1)} className="text-slate-500 hover:text-white"><i className="ph-bold ph-minus text-sm"></i></button>
+                </div>
+                <div className="w-16 text-center text-2xl sm:text-3xl font-black text-emerald-400 tracking-tighter">
+                  {currentState.score.B.points}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="px-4 py-2 flex justify-between items-center">
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Tracking Depth</span>
+            <div className="bg-slate-800 rounded-lg p-1 flex">
+              <button 
+                className={`px-3 py-1 rounded text-xs font-medium transition-colors ${trackingDepth === 'basic' ? 'bg-slate-600 text-white' : 'text-slate-400'}`}
+                onClick={() => setTrackingDepth('basic')}
+              >
+                Basic
+              </button>
+              <button 
+                className={`px-3 py-1 rounded text-xs font-medium transition-colors ${trackingDepth === 'advanced' ? 'bg-slate-600 text-white' : 'text-slate-400'}`}
+                onClick={() => setTrackingDepth('advanced')}
+              >
+                Advanced
+              </button>
+            </div>
+          </div>
+
+          <div className="flex-1 px-2 sm:px-4 pb-4 overflow-y-auto relative">
+            
+            {currentState.matchWinner && (
+              <div className="absolute inset-0 z-10 bg-slate-900/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 rounded-xl border border-emerald-500/30 m-2 sm:m-4">
+                <i className="ph-fill ph-trophy text-6xl text-emerald-400 mb-4"></i>
+                <h2 className="text-2xl font-bold text-white mb-2">Match Complete!</h2>
+                <p className="text-slate-300 mb-6 text-center text-lg">
+                  <span className="font-bold text-white">{currentState.matchWinner === 'A' ? matchConfig.teamA : matchConfig.teamB}</span> wins the match.
+                </p>
+                <div className="flex gap-4 w-full max-w-sm">
+                  <button onClick={() => setView('stats')} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-4 rounded-lg transition-colors flex justify-center items-center">
+                    <i className="ph-bold ph-chart-bar text-xl mr-2"></i> View Stats
+                  </button>
+                  <button onClick={() => {
+                    setHistory([INITIAL_STATE]);
+                    setHistoryIndex(0);
+                    setView('setup');
+                  }} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                    New Match
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className={`grid grid-cols-2 gap-2 sm:gap-4 h-full ${currentState.matchWinner ? 'opacity-20 pointer-events-none' : ''}`}>
+              
+              <div className="flex flex-col gap-2">
+                <div className="bg-slate-800/50 p-2 rounded-lg text-center font-bold text-sm text-slate-300 border-t-2 border-emerald-500">
+                  {matchConfig.teamA} Point
+                </div>
+                
+                {trackingDepth === 'basic' ? (
+                   <button 
+                     onClick={() => handlePoint('A', 'basic')} 
+                     className="flex-1 bg-emerald-600 hover:bg-emerald-500 active:scale-95 transition-all rounded-xl shadow-lg flex flex-col items-center justify-center p-4"
+                   >
+                     <span className="text-xl font-bold">Won Point</span>
+                   </button>
+                ) : (
+                  <React.Fragment>
+                    <button onClick={() => handlePoint('A', 'winner')} className="flex-1 bg-emerald-600 hover:bg-emerald-500 active:scale-95 transition-all rounded-xl shadow-lg flex flex-col items-center justify-center p-2 border border-emerald-400/30">
+                      <span className="font-bold text-sm sm:text-base">Winner</span>
+                    </button>
+                    <div className="flex gap-2 flex-1">
+                      <button onClick={() => handlePoint('B', 'unforced')} className="flex-1 bg-red-900/60 hover:bg-red-800/80 active:scale-95 transition-all rounded-xl shadow-lg flex flex-col items-center justify-center p-2 border border-red-500/30">
+                        <span className="font-bold text-xs sm:text-sm text-red-200 leading-tight">Unforced<br/>Error</span>
+                      </button>
+                      <button onClick={() => handlePoint('B', 'forced')} className="flex-1 bg-orange-900/60 hover:bg-orange-800/80 active:scale-95 transition-all rounded-xl shadow-lg flex flex-col items-center justify-center p-2 border border-orange-500/30">
+                        <span className="font-bold text-xs sm:text-sm text-orange-200 leading-tight">Forced<br/>Error</span>
+                      </button>
+                    </div>
+                    {currentState.server === 'A' && (
+                      <div className="flex gap-2 flex-1">
+                        <button onClick={() => handlePoint('A', 'ace')} className="flex-1 bg-blue-600/80 hover:bg-blue-500 active:scale-95 transition-all rounded-xl shadow-lg flex items-center justify-center p-2 border border-blue-400/30">
+                          <span className="font-bold text-xs sm:text-sm text-blue-100">Ace</span>
+                        </button>
+                        <button onClick={() => handlePoint('B', 'doubleFault')} className="flex-1 bg-purple-900/60 hover:bg-purple-800/80 active:scale-95 transition-all rounded-xl shadow-lg flex items-center justify-center p-2 border border-purple-500/30">
+                          <span className="font-bold text-xs sm:text-sm text-purple-200">Double Fault</span>
+                        </button>
+                      </div>
+                    )}
+                  </React.Fragment>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <div className="bg-slate-800/50 p-2 rounded-lg text-center font-bold text-sm text-slate-300 border-t-2 border-emerald-500">
+                  {matchConfig.teamB} Point
+                </div>
+                
+                {trackingDepth === 'basic' ? (
+                   <button 
+                     onClick={() => handlePoint('B', 'basic')} 
+                     className="flex-1 bg-emerald-600 hover:bg-emerald-500 active:scale-95 transition-all rounded-xl shadow-lg flex flex-col items-center justify-center p-4"
+                   >
+                     <span className="text-xl font-bold">Won Point</span>
+                   </button>
+                ) : (
+                  <React.Fragment>
+                    <button onClick={() => handlePoint('B', 'winner')} className="flex-1 bg-emerald-600 hover:bg-emerald-500 active:scale-95 transition-all rounded-xl shadow-lg flex flex-col items-center justify-center p-2 border border-emerald-400/30">
+                      <span className="font-bold text-sm sm:text-base">Winner</span>
+                    </button>
+                    <div className="flex gap-2 flex-1">
+                      <button onClick={() => handlePoint('A', 'unforced')} className="flex-1 bg-red-900/60 hover:bg-red-800/80 active:scale-95 transition-all rounded-xl shadow-lg flex flex-col items-center justify-center p-2 border border-red-500/30">
+                        <span className="font-bold text-xs sm:text-sm text-red-200 leading-tight">Unforced<br/>Error</span>
+                      </button>
+                      <button onClick={() => handlePoint('A', 'forced')} className="flex-1 bg-orange-900/60 hover:bg-orange-800/80 active:scale-95 transition-all rounded-xl shadow-lg flex flex-col items-center justify-center p-2 border border-orange-500/30">
+                        <span className="font-bold text-xs sm:text-sm text-orange-200 leading-tight">Forced<br/>Error</span>
+                      </button>
+                    </div>
+                    {currentState.server === 'B' && (
+                      <div className="flex gap-2 flex-1">
+                        <button onClick={() => handlePoint('B', 'ace')} className="flex-1 bg-blue-600/80 hover:bg-blue-500 active:scale-95 transition-all rounded-xl shadow-lg flex items-center justify-center p-2 border border-blue-400/30">
+                          <span className="font-bold text-xs sm:text-sm text-blue-100">Ace</span>
+                        </button>
+                        <button onClick={() => handlePoint('A', 'doubleFault')} className="flex-1 bg-purple-900/60 hover:bg-purple-800/80 active:scale-95 transition-all rounded-xl shadow-lg flex items-center justify-center p-2 border border-purple-500/30">
+                          <span className="font-bold text-xs sm:text-sm text-purple-200">Double Fault</span>
+                        </button>
+                      </div>
+                    )}
+                  </React.Fragment>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-slate-800 border-t border-slate-700 p-2 sm:p-3 flex items-center gap-3">
+            <button 
+              onClick={undo}
+              disabled={historyIndex === 0}
+              className={`flex-none p-3 rounded-xl border flex items-center justify-center transition-all ${
+                historyIndex === 0 
+                ? 'bg-slate-800 border-slate-700 text-slate-600 cursor-not-allowed' 
+                : 'bg-slate-700 border-slate-600 text-white hover:bg-slate-600 active:scale-95'
+              }`}
+            >
+              <i className="ph-bold ph-arrow-counter-clockwise text-xl"></i>
+            </button>
+            
+            <div className="flex-1 bg-slate-900 rounded-xl p-2 h-12 overflow-hidden border border-slate-700 relative flex items-center pl-8">
+              <i className="ph-fill ph-chat-circle text-base text-slate-500 absolute left-2"></i>
+              {currentState.log.length > 0 ? (
+                <div className="text-xs sm:text-sm text-slate-300 truncate">
+                  {currentState.log[0]}
+                </div>
+              ) : (
+                <div className="text-xs text-slate-500 italic">Match started. Awaiting first point...</div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
