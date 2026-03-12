@@ -86,6 +86,14 @@
         .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #a1a1aa; }
+
+        /* --- PRINT STYLES FOR OFFICIAL SCORECARD --- */
+        @media print {
+            body { background-color: white !important; }
+            #root > div:not(#print-mount) { display: none !important; }
+            #print-mount { display: block !important; width: 100%; }
+            @page { margin: 0.5in; size: portrait; }
+        }
     </style>
 </head>
 <body>
@@ -109,7 +117,8 @@
             Activity: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>,
             Swords: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"></polyline><line x1="13" y1="19" x2="19" y2="13"></line><line x1="16" y1="16" x2="20" y2="20"></line><line x1="19" y1="21" x2="21" y2="19"></line><polyline points="14.5 6.5 18 3 21 3 21 6 17.5 9.5"></polyline><line x1="5" y1="14" x2="9" y2="18"></line><line x1="7" y1="17" x2="4" y2="20"></line><line x1="3" y1="19" x2="5" y2="21"></line></svg>,
             Trophy: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[#FFB81C]"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>,
-            MessageCircle: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+            MessageCircle: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>,
+            Printer: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
         };
 
         // PRIVACY FILTER: Formats "John Smith" to "John S."
@@ -123,11 +132,9 @@
         // MAP LINK & DISPLAY GENERATORS
         const getMapLink = (match) => {
             if (!match) return "#";
-            // If the coach provided a specific address, strictly use that!
             if (match.address && match.address.trim() !== '') {
                 return `https://maps.google.com/?q=${encodeURIComponent(match.address)}`;
             }
-
             let query = match.location || '';
             if (query.toLowerCase() === 'home') query = 'Freedom High School South Riding VA';
             else if (query.toLowerCase() === 'away') query = `${match.opponent} High School Virginia`;
@@ -142,17 +149,14 @@
             return match.location;
         };
 
-        // HELPER: Determine if a match is Home or Away to display "vs." or "@"
         const getOpponentPrefix = (match) => {
             if (!match) return "vs.";
             const loc = (match.location || '').toLowerCase();
             return (loc === 'home' || loc.includes('freedom')) ? 'vs.' : '@';
         };
 
-        // HELPER: Format YYYY-MM-DD date strings safely to avoid Timezone 1-day off bugs
         const formatDisplayDate = (dateString, options) => {
             if (!dateString) return "";
-            // Append T12:00:00 to force noon parsing, avoiding UTC midnight offset shifts
             return new Date(`${dateString}T12:00:00`).toLocaleDateString('en-US', options);
         };
 
@@ -180,8 +184,7 @@
             const [timeLeft, setTimeLeft] = React.useState({ days: 0, hours: 0, minutes: 0, seconds: 0, isPast: false });
 
             React.useEffect(() => {
-                // Parse the match date and time securely
-                let matchDate = new Date(`${dateStr}T12:00:00`); // Default to noon if time parsing fails
+                let matchDate = new Date(`${dateStr}T12:00:00`);
                 try {
                     if (timeStr && timeStr.toLowerCase() !== 'tbd') {
                         const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM|am|pm)/);
@@ -191,7 +194,6 @@
                             const modifier = match[3].toUpperCase();
                             if (modifier === 'PM' && hours < 12) hours += 12;
                             if (modifier === 'AM' && hours === 12) hours = 0;
-                            // Reconstruct precise date object for the countdown
                             matchDate = new Date(`${dateStr}T${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:00`);
                         }
                     }
@@ -248,8 +250,6 @@
             );
         };
 
-        // --- EXTRACTED COMPONENTS (MOVED OUTSIDE TO PREVENT UNMOUNTING BUGS) ---
-
         const ScorecardView = ({ match, roster }) => {
             if (!match.lines) return <div className="text-center p-4 text-sm text-gray-500 italic">Detailed scorecard not available for this match.</div>;
             
@@ -288,11 +288,17 @@
                             ))}
                         </tbody>
                     </table>
+                    
+                    <div className="mt-4 flex justify-end">
+                        <button onClick={() => window.printMatchScorecard(match)} className="text-xs bg-gray-800 text-white px-4 py-2 rounded-lg font-bold shadow hover:bg-black transition flex items-center gap-2">
+                            <Icons.Printer /> Print Official PDF
+                        </button>
+                    </div>
                 </div>
             );
         };
 
-        const HomeView = ({ announcements, awards, teamWins, teamLosses, pastMatches, nextMatch, setView, expandedMatch, setExpandedMatch, roster }) => (
+        const HomeView = ({ announcements, awards, teamWins, teamLosses, pastMatches, nextMatch, setView, expandedMatch, setExpandedMatch, roster, liveMatches }) => (
             <div className="space-y-6 animate-slide-up">
                 {announcements.length > 0 && (
                     <div className="bg-yellow-100 border-l-4 border-[#FFB81C] p-4 rounded-r-lg shadow-sm">
@@ -304,12 +310,58 @@
                     </div>
                 )}
 
-                {/* SportsYou Call to Action */}
+                {/* --- LIVE COURTS SPECTATOR DASHBOARD --- */}
+                {liveMatches && liveMatches.length > 0 && (
+                    <div className="bg-slate-900 rounded-2xl p-4 sm:p-6 shadow-xl border border-red-500/30">
+                        <div className="flex items-center gap-2 mb-4">
+                            <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]"></div>
+                            <h2 className="text-xl font-black text-white uppercase tracking-widest">Live Courts</h2>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {liveMatches.map(lm => (
+                                <div key={lm.id} className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+                                    <div className="bg-slate-950 p-2 text-xs font-bold text-slate-300 flex justify-between items-center border-b border-slate-700">
+                                        <span className="text-[#FFB81C] uppercase">{lm.config.line || 'Match'}</span>
+                                        <span className="text-slate-500">{lm.config.format === '1-set-8' ? 'Pro Set' : '2 Sets'}</span>
+                                    </div>
+                                    <div className="p-3 grid grid-cols-[1fr_auto_auto_auto] gap-2 items-center text-sm">
+                                        <div className="text-slate-400 font-semibold text-center pr-2">S</div>
+                                        <div className="text-slate-400 font-semibold text-center pr-2">G</div>
+                                        <div className="text-emerald-400 font-semibold text-center">PTS</div>
+                                        
+                                        {/* Freedom Player Row */}
+                                        <div className="col-start-1 flex items-center gap-2">
+                                            <div className={`w-1.5 h-1.5 rounded-full ${lm.state.server === 'A' ? 'bg-yellow-400' : 'bg-transparent'}`}></div>
+                                            <div className="font-bold text-white truncate max-w-[120px]">{formatPrivacyName(lm.config.playerA1)}</div>
+                                        </div>
+                                        <div className="font-bold text-white text-center pr-2">{lm.state.score.A.sets}</div>
+                                        <div className="font-bold text-white text-center pr-2">{lm.state.score.A.games}</div>
+                                        <div className="font-black text-emerald-400 text-center text-lg">{lm.state.score.A.points}</div>
+
+                                        {/* Opponent Row */}
+                                        <div className="col-start-1 flex items-center gap-2 mt-1">
+                                            <div className={`w-1.5 h-1.5 rounded-full ${lm.state.server === 'B' ? 'bg-yellow-400' : 'bg-transparent'}`}></div>
+                                            <div className="font-bold text-slate-300 truncate max-w-[120px]">{formatPrivacyName(lm.config.playerB1) || lm.config.teamB}</div>
+                                        </div>
+                                        <div className="font-bold text-slate-300 text-center pr-2 mt-1">{lm.state.score.B.sets}</div>
+                                        <div className="font-bold text-slate-300 text-center pr-2 mt-1">{lm.state.score.B.games}</div>
+                                        <div className="font-black text-emerald-400/70 text-center text-lg mt-1">{lm.state.score.B.points}</div>
+                                    </div>
+                                    {lm.state.log && lm.state.log.length > 0 && (
+                                        <div className="bg-slate-900/50 p-2 text-xs text-slate-400 truncate italic border-t border-slate-700/50">
+                                            {lm.state.log[0].replace(/\[.*?\] /, '')}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 <a href="PASTE_SPORTSYOU_LINK_HERE" target="_blank" rel="noopener noreferrer" className="bg-blue-600 text-white rounded-lg p-3 flex items-center justify-center gap-3 font-bold hover:bg-blue-700 transition shadow-sm border border-blue-800 block text-center">
                     <Icons.MessageCircle /> Join our SportsYou for practice schedules & team chat!
                 </a>
 
-                {/* Player Spotlight / Award (Shows the most recent one) */}
                 {awards.length > 0 && (
                     <div className="bg-black border border-[#FFB81C] rounded-2xl p-6 shadow-xl relative overflow-hidden">
                         <div className="absolute -right-4 -bottom-4 opacity-20 transform scale-150"><Icons.Trophy /></div>
@@ -361,9 +413,7 @@
                                 </div>
                             )}
                             
-                            {/* Injected Live Countdown Here */}
                             <MatchCountdown dateStr={nextMatch.date} timeStr={nextMatch.time} />
-                            
                         </div>
                     </div>
                 ) : (
@@ -422,7 +472,6 @@
             <div className="animate-slide-up space-y-6">
                 <h2 className="text-2xl font-black text-gray-800 mb-4 border-b border-gray-200 pb-2">Season Schedule</h2>
                 
-                {/* UPDATED: Practice Banner directing to SportsYou */}
                 <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3 mb-6">
                     <div className="text-blue-600 mt-1"><Icons.Info /></div>
                     <div>
@@ -506,24 +555,13 @@
         const RosterView = ({ rosterWithStats, matches, awards }) => {
             const [selectedPlayer, setSelectedPlayer] = React.useState(null);
 
-            // Filter players based on their flight, allowing "Both" to appear in both lists
-            const singlesPlayers = rosterWithStats
-                .filter(p => p.flight === 'Singles' || p.flight === 'Both')
-                .sort((a, b) => a.position - b.position);
-                
-            const doublesPlayers = rosterWithStats
-                .filter(p => p.flight === 'Doubles' || p.flight === 'Both')
-                .sort((a, b) => (a.doublesPosition || a.position) - (b.doublesPosition || b.position));
+            const singlesPlayers = rosterWithStats.filter(p => p.flight === 'Singles' || p.flight === 'Both').sort((a, b) => a.position - b.position);
+            const doublesPlayers = rosterWithStats.filter(p => p.flight === 'Doubles' || p.flight === 'Both').sort((a, b) => (a.doublesPosition || a.position) - (b.doublesPosition || b.position));
 
             const PlayerCard = ({ player }) => (
-                <div 
-                    onClick={() => setSelectedPlayer(player)}
-                    className="glass-card p-4 flex flex-col justify-between cursor-pointer hover:shadow-md hover:border-[#FFB81C] transition-all group relative"
-                >
+                <div onClick={() => setSelectedPlayer(player)} className="glass-card p-4 flex flex-col justify-between cursor-pointer hover:shadow-md hover:border-[#FFB81C] transition-all group relative">
                     {player.isCaptain && (
-                        <div className="absolute -top-3 -right-3 bg-black text-[#FFB81C] text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full border border-[#FFB81C] shadow-sm z-10">
-                            ★ Captain
-                        </div>
+                        <div className="absolute -top-3 -right-3 bg-black text-[#FFB81C] text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full border border-[#FFB81C] shadow-sm z-10">★ Captain</div>
                     )}
                     <div className="flex justify-between items-start mb-4">
                         <div>
@@ -532,14 +570,10 @@
                         </div>
                         <div className="flex gap-1">
                             {(player.flight === 'Singles' || player.flight === 'Both') && (
-                                <div className="w-8 h-8 rounded-full bg-black text-[#FFB81C] flex items-center justify-center font-black text-xs border border-[#FFB81C]/50 shadow-sm" title="Singles Rank">
-                                    S{player.position}
-                                </div>
+                                <div className="w-8 h-8 rounded-full bg-black text-[#FFB81C] flex items-center justify-center font-black text-xs border border-[#FFB81C]/50 shadow-sm" title="Singles Rank">S{player.position}</div>
                             )}
                             {(player.flight === 'Doubles' || player.flight === 'Both') && (
-                                <div className="w-8 h-8 rounded-full bg-[#FFB81C] text-black flex items-center justify-center font-black text-xs border border-black/20 shadow-sm" title="Doubles Rank">
-                                    D{player.doublesPosition || player.position}
-                                </div>
+                                <div className="w-8 h-8 rounded-full bg-[#FFB81C] text-black flex items-center justify-center font-black text-xs border border-black/20 shadow-sm" title="Doubles Rank">D{player.doublesPosition || player.position}</div>
                             )}
                         </div>
                     </div>
@@ -590,7 +624,7 @@
                                 <button onClick={() => setSelectedPlayer(null)} className="text-gray-400 hover:text-gray-800 font-black text-2xl">✕</button>
                             </div>
 
-                            <div className="grid grid-cols-3 gap-3 mb-8 text-center">
+                            <div className="grid grid-cols-3 gap-3 mb-6 text-center">
                                 <div className="bg-gray-50 rounded-xl p-3 border border-gray-200 shadow-sm">
                                     <div className="text-[10px] uppercase font-black tracking-widest text-gray-500 mb-1">Overall</div>
                                     <div className="text-2xl font-black text-gray-800">{player.wins}-{player.losses}</div>
@@ -604,6 +638,38 @@
                                     <div className="text-2xl font-black text-green-800">{player.doublesWins}-{player.doublesLosses}</div>
                                 </div>
                             </div>
+
+                            {/* --- ADVANCED STATS FROM LIVE TRACKER --- */}
+                            {player.trackedCount > 0 && (
+                                <div className="mb-8 bg-black rounded-xl p-5 shadow-xl relative overflow-hidden">
+                                    <div className="absolute opacity-10 -right-4 -bottom-4 transform scale-150"><Icons.Activity /></div>
+                                    <h4 className="text-[#FFB81C] text-xs font-black uppercase tracking-widest mb-4 flex items-center gap-2 relative z-10"><Icons.Activity /> Advanced Analytics</h4>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 relative z-10">
+                                        <div>
+                                            <div className="text-gray-400 text-[10px] uppercase tracking-widest">Aces</div>
+                                            <div className="text-2xl font-black text-white">{player.aces}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-gray-400 text-[10px] uppercase tracking-widest">Winners</div>
+                                            <div className="text-2xl font-black text-emerald-400">{player.winners}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-gray-400 text-[10px] uppercase tracking-widest">Unforced Errors</div>
+                                            <div className="text-2xl font-black text-red-400">{player.unforcedErrors}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-gray-400 text-[10px] uppercase tracking-widest">Double Faults</div>
+                                            <div className="text-2xl font-black text-orange-400">{player.doubleFaults}</div>
+                                        </div>
+                                    </div>
+                                    <p className="text-gray-500 text-[10px] mt-4 pt-3 border-t border-gray-800 italic relative z-10">*Aggregated from {player.trackedCount} live-tracked matches on the Freedom Cloud.</p>
+                                </div>
+                            )}
+                            {player.trackedCount === 0 && (
+                                <div className="mb-8 p-4 bg-gray-50 border border-dashed border-gray-300 rounded-xl text-center">
+                                    <p className="text-xs text-gray-500 font-medium">No advanced analytics available. Live Track a match with this player to generate stats.</p>
+                                </div>
+                            )}
 
                             {playerAwards.length > 0 && (
                                 <div className="mb-8">
@@ -706,7 +772,6 @@
                 <h2 className="text-2xl font-black text-gray-800 mb-2 border-b border-gray-200 pb-2">Parent & Player Resources</h2>
                 <p className="text-sm text-gray-600 mb-6">Important forms and information for the current season.</p>
                 
-                {/* Public Awards Criteria Banner */}
                 <div className="bg-black text-white p-6 rounded-2xl shadow-xl border-l-4 border-[#FFB81C] mb-6">
                     <h3 className="font-black text-xl mb-4 flex items-center gap-2 text-[#FFB81C]"><Icons.Trophy /> Season Awards Criteria</h3>
                     <p className="text-xs text-gray-400 mb-4 border-b border-gray-800 pb-4">Our program follows the USTA American Development Model. We recognize players who embody the "5 C's" of tennis (Character, Competence, Confidence, Connection, Creativity).</p>
@@ -726,7 +791,6 @@
                         <span className="text-sm font-bold text-blue-600">Join Here ➔</span>
                     </a>
 
-                    {/* NEW: Team Instagram Link */}
                     <a href="https://www.instagram.com/fhsvgirlstennis/" target="_blank" rel="noopener noreferrer" className="glass-card p-6 border-l-4 border-pink-500 hover:shadow-md transition cursor-pointer block">
                         <h3 className="font-black text-lg mb-2">Team Instagram</h3>
                         <p className="text-xs text-gray-500 mb-4">Follow @fhsvgirlstennis for match day photos, player takeovers, and team highlights!</p>
@@ -780,7 +844,6 @@
             const [challengeForm, setChallengeForm] = React.useState({ date: today, challengerId: '', defenderId: '', score: '', winnerId: '' });
             const [activeTab, setActiveTab] = React.useState('dashboard');
             
-            // New State for Ladder Management & Automation
             const [autoSwap, setAutoSwap] = React.useState(false);
             const [editPlayerId, setEditPlayerId] = React.useState(null);
             const [editPlayerForm, setEditPlayerForm] = React.useState({ flight: 'Singles', position: 1, doublesPosition: 1, isCaptain: false });
@@ -788,7 +851,6 @@
             const [editingMatchId, setEditingMatchId] = React.useState(null);
             const [scorecardData, setScorecardData] = React.useState([]);
 
-            // NEW STATE: Match Details Editing
             const [editingMatchDetailsId, setEditingMatchDetailsId] = React.useState(null);
             const [editMatchDetailsForm, setEditMatchDetailsForm] = React.useState({ date: '', opponent: '', location: '', address: '', time: '', busTime: '', returnTime: '' });
 
@@ -800,7 +862,6 @@
                 'Clutch Performer': 'Confidence: Stepping up in high-pressure moments, winning tiebreakers, or securing the deciding team point.'
             };
 
-            // Helper to check for permission errors gracefully
             const checkPermissionsError = (err) => {
                 if (err.code === 'permission-denied') {
                     alert("⚠️ FIREBASE ERROR: Your Firestore database rules are blocking this save.\n\nPlease go to the Firebase Console -> Firestore Database -> Rules, and ensure they allow read/write access.");
@@ -809,7 +870,6 @@
                 }
             };
 
-            // BULK IMPORT SCRIPT
             const handleBulkImportSchedule = async () => {
                 if(!user || !db) return alert("Not connected to database!");
                 if(!confirm("Are you sure? This will instantly inject all 20 matches from your PDF into the live schedule!")) return;
@@ -919,7 +979,6 @@
 
             const updateLine = (idx, field, value) => {
                 const newData = [...scorecardData];
-                // Safely clone the specific line to avoid reference bugs
                 const newLine = { ...newData[idx], playerIds: [...newData[idx].playerIds] };
                 if (field === 'player1') { newLine.playerIds[0] = value; }
                 else if (field === 'player2') { newLine.playerIds[1] = value; }
@@ -1049,7 +1108,6 @@
                         timestamp: Date.now()
                     });
 
-                    // AUTO-SWAP LOGIC
                     if (autoSwap && challengeForm.winnerId === challengeForm.challengerId) {
                         const challenger = roster.find(r => r.id === challengeForm.challengerId);
                         const defender = roster.find(r => r.id === challengeForm.defenderId);
@@ -1470,7 +1528,7 @@
                         </div>
                     )}
 
-                    {/* FULL SCORECARD MODAL */}
+                    {/* FULL SCORECARD MODAL WITH PRINT BUTTON */}
                     {editingMatchId && (
                         <div className="modal-overlay" onClick={() => setEditingMatchId(null)}>
                             <div className="modal-content max-w-4xl" onClick={e => e.stopPropagation()}>
@@ -1525,9 +1583,16 @@
                                         </tbody>
                                     </table>
                                 </div>
-                                <div className="mt-6 pt-4 border-t flex justify-end gap-3">
-                                    <button onClick={() => setEditingMatchId(null)} className="px-6 py-3 font-bold text-gray-500 hover:bg-gray-100 rounded-lg">Cancel</button>
-                                    <button onClick={saveScorecard} className="px-6 py-3 bg-green-600 text-white font-black rounded-lg hover:bg-green-700 shadow-md">Save & Auto-Calculate Score</button>
+                                <div className="mt-6 pt-4 border-t flex flex-col sm:flex-row justify-between items-center gap-4">
+                                    <button 
+                                        onClick={() => window.printMatchScorecard({ id: editingMatchId, lines: scorecardData, opponent: matches.find(m=>m.id===editingMatchId)?.opponent, date: matches.find(m=>m.id===editingMatchId)?.date })} 
+                                        className="px-4 py-3 bg-gray-800 text-white font-bold rounded-lg hover:bg-black shadow-md flex items-center gap-2 text-sm w-full sm:w-auto justify-center">
+                                        <Icons.Printer /> Print PDF Scorecard
+                                    </button>
+                                    <div className="flex gap-3 w-full sm:w-auto">
+                                        <button onClick={() => setEditingMatchId(null)} className="flex-1 sm:flex-none px-6 py-3 font-bold text-gray-500 hover:bg-gray-100 rounded-lg">Cancel</button>
+                                        <button onClick={saveScorecard} className="flex-1 sm:flex-none px-6 py-3 bg-green-600 text-white font-black rounded-lg hover:bg-green-700 shadow-md">Save & Auto-Calculate</button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1537,13 +1602,72 @@
             );
         };
 
+        // --- PRINTABLE SCORECARD COMPONENT (HIDDEN UNLESS PRINTING) ---
+        const PrintableScorecardRoot = ({ match, roster }) => {
+            if (!match) return null;
+            
+            const getPlayerNames = (ids) => {
+                if (!ids || ids.length === 0) return "";
+                const names = ids.map(id => {
+                    const player = roster.find(r => r.id === id);
+                    return player ? player.name : "";
+                });
+                return names.join(" & ");
+            };
+
+            const lines = match.lines || generateDefaultLines();
+            const homeWins = lines.filter(l => l.winner === 'Home').length;
+            const awayWins = lines.filter(l => l.winner === 'Away').length;
+
+            return (
+                <div id="print-mount" className="hidden p-8 font-sans bg-white text-black min-h-screen">
+                    <div className="text-center mb-8 border-b-2 border-black pb-4">
+                        <h1 className="text-3xl font-black uppercase tracking-widest mb-1">Official Tennis Scorecard</h1>
+                        <h2 className="text-xl font-bold text-gray-700">Freedom High School (Home) vs. {match.opponent || 'Opponent'} (Away)</h2>
+                        <p className="text-sm mt-2 text-gray-600 font-medium">Date: {formatDisplayDate(match.date)} • Location: Freedom High School Courts</p>
+                    </div>
+                    <table className="w-full text-sm text-left border-collapse border border-black mb-8">
+                        <thead className="bg-gray-200 font-black uppercase text-xs">
+                            <tr>
+                                <th className="border border-black p-3 w-16 text-center">Line</th>
+                                <th className="border border-black p-3 w-1/3">Freedom High School</th>
+                                <th className="border border-black p-3 w-1/3">Opponent</th>
+                                <th className="border border-black p-3 text-center">Winner</th>
+                                <th className="border border-black p-3 text-center">Score</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {lines.map((line, idx) => (
+                                <tr key={idx}>
+                                    <td className="border border-black p-3 font-black text-center bg-gray-50">{line.id}</td>
+                                    <td className="border border-black p-3 font-medium">{getPlayerNames(line.playerIds)}</td>
+                                    <td className="border border-black p-3 font-medium">{line.opponentName}</td>
+                                    <td className="border border-black p-3 text-center font-bold">{line.winner === 'Home' ? 'Freedom' : line.winner === 'Away' ? match.opponent : ''}</td>
+                                    <td className="border border-black p-3 text-center font-mono">{line.score}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                    <div className="flex justify-between items-end mt-12">
+                        <div className="w-1/2 pr-8 space-y-6">
+                            <div><div className="border-b border-black mb-1 w-full h-8"></div><div className="text-xs font-bold uppercase tracking-widest text-gray-600">Home Coach Signature</div></div>
+                            <div><div className="border-b border-black mb-1 w-full h-8"></div><div className="text-xs font-bold uppercase tracking-widest text-gray-600">Away Coach Signature</div></div>
+                        </div>
+                        <div className="w-1/2 pl-8 border-l-2 border-gray-300">
+                            <h3 className="text-sm font-bold uppercase tracking-widest text-gray-600 mb-2">Final Team Score</h3>
+                            <div className="text-2xl font-black">Freedom: <span className="text-4xl ml-2">{homeWins}</span></div>
+                            <div className="text-2xl font-black mt-2">Opponent: <span className="text-4xl ml-2">{awayWins}</span></div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
         function App() {
-            // STATE
+            const [view, setView] = React.useState('home');
             const [user, setUser] = React.useState(null);
             const [db, setDb] = React.useState(null);
-            const [appId, setAppId] = React.useState('freedom-tennis-default');
-            const [view, setView] = React.useState('home');
-            
+            const [appId, setAppId] = React.useState('fhs-girls-tennis');
             const [matches, setMatches] = React.useState([]);
             const [roster, setRoster] = React.useState([]);
             const [announcements, setAnnouncements] = React.useState([]);
@@ -1552,19 +1676,30 @@
             const [loading, setLoading] = React.useState(true);
             const [expandedMatch, setExpandedMatch] = React.useState(null);
             
-            // ADMIN STATE
             const [isAdmin, setIsAdmin] = React.useState(false);
             const [showPinModal, setShowPinModal] = React.useState(false);
             const [pinInput, setPinInput] = React.useState('');
             const [pinError, setPinError] = React.useState('');
             const COACH_PIN = "050321";
 
-            // FIREBASE INIT & AUTH
+            // --- V3 STATE ---
+            const [liveMatches, setLiveMatches] = React.useState([]);
+            const [trackedMatches, setTrackedMatches] = React.useState([]);
+
+            const [printMatchData, setPrintMatchData] = React.useState(null);
+
+            React.useEffect(() => {
+                window.printMatchScorecard = (matchData) => {
+                    setPrintMatchData(matchData);
+                    setTimeout(() => { window.print(); }, 500); 
+                };
+            }, []);
+
             React.useEffect(() => {
                 const initFirebase = async () => {
                     try {
                         if (!firebase.apps.length) {
-                           const config = {
+                            const config = {
                                 apiKey: "AIzaSyBtT461dmlo_8dilfxvsAo1GDv15OiOz3c",
                                 authDomain: "fhs-girls-tennis.firebaseapp.com",
                                 projectId: "fhs-girls-tennis",
@@ -1575,18 +1710,12 @@
                             firebase.initializeApp(config);
                         }
                         
-                        const currentAppId = 'fhs-girls-tennis';
-                        setAppId(currentAppId);
                         setDb(firebase.firestore());
 
-                        // AUTH FIX: Strictly use Anonymous Auth
                         try {
                             await firebase.auth().signInAnonymously();
                         } catch (authError) {
                             console.error("Auth Error:", authError);
-                            if (authError.code === 'auth/operation-not-allowed') {
-                                alert("🚨 FIREBASE SETUP MISSING 🚨\n\nYou must go to the Firebase Console -> Authentication -> Sign-in Method, and ENABLE 'Anonymous' authentication for the database to work!");
-                            }
                         }
                         
                     } catch (e) {
@@ -1604,7 +1733,6 @@
                 return () => unsubscribe();
             }, []);
 
-            // FIREBASE DATA FETCHING
             React.useEffect(() => {
                 if (!user || !db) return;
 
@@ -1614,8 +1742,6 @@
                         snap.forEach(doc => m.push({ id: doc.id, ...doc.data() }));
                         m.sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
                         setMatches(m);
-                    }, (err) => {
-                        console.error("Error fetching matches", err);
                     });
 
                 const rosterUnsub = db.collection(`artifacts/${appId}/public/data/roster`)
@@ -1653,10 +1779,30 @@
                         setChallenges(c);
                     });
 
-                return () => { matchesUnsub(); rosterUnsub(); announcementsUnsub(); awardsUnsub(); challengesUnsub(); };
+                // --- V3: Fetch Live Broadcast Matches ---
+                const lmUnsub = db.collection(`artifacts/${appId}/public/data/live_matches`).onSnapshot(snap => {
+                    const lm = [];
+                    const now = Date.now();
+                    snap.forEach(doc => {
+                        const data = doc.data();
+                        // Only show matches updated in the last 8 hours
+                        if (now - data.timestamp < 8 * 60 * 60 * 1000) {
+                            lm.push({ id: doc.id, ...data });
+                        }
+                    });
+                    lm.sort((a,b) => (a.config.line || '').localeCompare(b.config.line || ''));
+                    setLiveMatches(lm);
+                });
+
+                // --- V3: Fetch Tracked History for Advanced Stats ---
+                const tmUnsub = db.collection(`artifacts/${appId}/public/data/tracked_matches`).onSnapshot(snap => {
+                    const tm = []; snap.forEach(d => tm.push({id: d.id, ...d.data()}));
+                    setTrackedMatches(tm);
+                });
+
+                return () => { matchesUnsub(); rosterUnsub(); announcementsUnsub(); awardsUnsub(); challengesUnsub(); lmUnsub(); tmUnsub(); };
             }, [user, db, appId]);
 
-            // DERIVED DATA & AUTO-CALCULATED STATS
             const today = new Date().toISOString().split('T')[0];
             const pastMatches = matches.filter(m => m.date < today || m.status === 'Completed');
             const upcomingMatches = matches.filter(m => m.date >= today && m.status !== 'Completed');
@@ -1668,33 +1814,39 @@
                 if (m.result && m.result.toUpperCase().startsWith('L')) teamLosses++;
             });
 
-            // Auto-calculate player records based on scorecards
-            const getPlayerStats = (playerId) => {
+            // --- V3 PLAYER STATS AGGREGATOR ---
+            const getPlayerStats = (player) => {
                 let wins = 0, losses = 0, singlesWins = 0, singlesLosses = 0, doublesWins = 0, doublesLosses = 0;
+                
+                // Standard W/L from official scorecards
                 matches.forEach(m => {
                     if (m.status === 'Completed' && m.lines) {
                         m.lines.forEach(line => {
-                            if (line.playerIds && line.playerIds.includes(playerId)) {
-                                if (line.winner === 'Home') {
-                                    wins++;
-                                    if (line.type === 'Singles') singlesWins++;
-                                    else if (line.type === 'Doubles') doublesWins++;
-                                }
-                                else if (line.winner === 'Away') {
-                                    losses++;
-                                    if (line.type === 'Singles') singlesLosses++;
-                                    else if (line.type === 'Doubles') doublesLosses++;
-                                }
+                            if (line.playerIds && line.playerIds.includes(player.id)) {
+                                if (line.winner === 'Home') { wins++; if (line.type === 'Singles') singlesWins++; else doublesWins++; }
+                                else if (line.winner === 'Away') { losses++; if (line.type === 'Singles') singlesLosses++; else doublesLosses++; }
                             }
                         });
                     }
                 });
-                return { wins, losses, singlesWins, singlesLosses, doublesWins, doublesLosses };
+
+                // Advanced Analytics from Live Tracker History
+                let aces = 0, winners = 0, unforcedErrors = 0, doubleFaults = 0, trackedCount = 0;
+                trackedMatches.forEach(tm => {
+                    if (tm.config.playerA1 === player.name || tm.config.playerA2 === player.name) {
+                        trackedCount++;
+                        aces += tm.stats?.A?.aces || 0;
+                        winners += tm.stats?.A?.winners || 0;
+                        unforcedErrors += tm.stats?.A?.unforcedErrors || 0;
+                        doubleFaults += tm.stats?.A?.doubleFaults || 0;
+                    }
+                });
+
+                return { wins, losses, singlesWins, singlesLosses, doublesWins, doublesLosses, aces, winners, unforcedErrors, doubleFaults, trackedCount };
             };
 
-            const rosterWithStats = roster.map(p => ({ ...p, ...getPlayerStats(p.id) }));
+            const rosterWithStats = roster.map(p => ({ ...p, ...getPlayerStats(p) }));
 
-            // ADMIN ACTIONS
             const handlePinSubmit = (e) => {
                 e.preventDefault();
                 if (pinInput === COACH_PIN) {
@@ -1722,8 +1874,9 @@
             }
 
             return (
-                <div className="min-h-screen flex flex-col">
-                    {/* Header */}
+                <div className="min-h-screen flex flex-col relative">
+                    <PrintableScorecardRoot match={printMatchData} roster={roster} />
+
                     <header className="header-gradient text-white pt-10 pb-6 px-6 shadow-md relative overflow-hidden">
                         <div className="absolute -right-10 -bottom-10 opacity-5 transform rotate-45 scale-150 text-white"><Icons.TennisBall /></div>
                         <div className="max-w-4xl mx-auto relative z-10 flex items-center gap-4">
@@ -1737,7 +1890,6 @@
                         </div>
                     </header>
 
-                    {/* Navigation */}
                     <div className="bg-white border-b border-gray-200 sticky top-0 z-40 shadow-sm">
                         <div className="max-w-4xl mx-auto flex">
                             <button onClick={() => setView('home')} className={`flex-1 py-4 flex flex-col items-center gap-1 nav-item ${view==='home'?'active':''}`}>
@@ -1760,16 +1912,14 @@
                         </div>
                     </div>
 
-                    {/* Main Content Area */}
                     <main className="flex-1 max-w-4xl w-full mx-auto p-4 md:p-6 pb-24">
-                        {view === 'home' && <HomeView announcements={announcements} awards={awards} teamWins={teamWins} teamLosses={teamLosses} pastMatches={pastMatches} nextMatch={nextMatch} setView={setView} expandedMatch={expandedMatch} setExpandedMatch={setExpandedMatch} roster={roster} />}
+                        {view === 'home' && <HomeView announcements={announcements} awards={awards} teamWins={teamWins} teamLosses={teamLosses} pastMatches={pastMatches} nextMatch={nextMatch} setView={setView} expandedMatch={expandedMatch} setExpandedMatch={setExpandedMatch} roster={roster} liveMatches={liveMatches} />}
                         {view === 'schedule' && <ScheduleView upcomingMatches={upcomingMatches} pastMatches={pastMatches} expandedMatch={expandedMatch} setExpandedMatch={setExpandedMatch} roster={roster} />}
                         {view === 'roster' && <RosterView rosterWithStats={rosterWithStats} matches={matches} awards={awards} />}
                         {view === 'resources' && <ResourcesView />}
                         {view === 'admin' && isAdmin && <AdminDashboard user={user} db={db} appId={appId} matches={matches} roster={roster} rosterWithStats={rosterWithStats} announcements={announcements} awards={awards} challenges={challenges} today={today} />}
                     </main>
 
-                    {/* Footer & Hidden Admin Toggle */}
                     <footer className="bg-black text-gray-500 py-6 text-center text-xs mt-auto">
                         <div className="max-w-4xl mx-auto flex flex-col items-center justify-center">
                             <p>© {new Date().getFullYear()} Freedom High School Tennis</p>
@@ -1783,7 +1933,6 @@
                         </div>
                     </footer>
 
-                    {/* Modals */}
                     {showPinModal && (
                         <div className="modal-overlay" onClick={() => setShowPinModal(false)}>
                             <div className="modal-content" onClick={e => e.stopPropagation()}>
