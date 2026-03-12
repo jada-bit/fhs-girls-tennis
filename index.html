@@ -85,13 +85,6 @@
         .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #a1a1aa; }
-
-        @media print {
-            body { background-color: white !important; }
-            #root > div:not(#print-mount) { display: none !important; }
-            #print-mount { display: block !important; width: 100%; }
-            @page { margin: 0.5in; size: portrait; }
-        }
     </style>
 </head>
 <body>
@@ -115,8 +108,7 @@
             Activity: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>,
             Swords: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"></polyline><line x1="13" y1="19" x2="19" y2="13"></line><line x1="16" y1="16" x2="20" y2="20"></line><line x1="19" y1="21" x2="21" y2="19"></line><polyline points="14.5 6.5 18 3 21 3 21 6 17.5 9.5"></polyline><line x1="5" y1="14" x2="9" y2="18"></line><line x1="7" y1="17" x2="4" y2="20"></line><line x1="3" y1="19" x2="5" y2="21"></line></svg>,
             Trophy: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[#FFB81C]"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>,
-            MessageCircle: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>,
-            Printer: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+            MessageCircle: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
         };
 
         // --- UTILITY FUNCTIONS ---
@@ -283,12 +275,6 @@
                             ))}
                         </tbody>
                     </table>
-                    
-                    <div className="mt-4 flex justify-end">
-                        <button onClick={() => window.printMatchScorecard(match)} className="text-xs bg-gray-800 text-white px-4 py-2 rounded-lg font-bold shadow hover:bg-black transition flex items-center gap-2">
-                            <Icons.Printer /> Print Official PDF
-                        </button>
-                    </div>
                 </div>
             );
         };
@@ -1626,16 +1612,9 @@
                                         </tbody>
                                     </table>
                                 </div>
-                                <div className="mt-6 pt-4 border-t flex flex-col sm:flex-row justify-between items-center gap-4">
-                                    <button 
-                                        onClick={() => window.printMatchScorecard({ id: editingMatchId, lines: scorecardData, opponent: matches.find(m=>m.id===editingMatchId)?.opponent, date: matches.find(m=>m.id===editingMatchId)?.date })} 
-                                        className="px-4 py-3 bg-gray-800 text-white font-bold rounded-lg hover:bg-black shadow-md flex items-center gap-2 text-sm w-full sm:w-auto justify-center">
-                                        <Icons.Printer /> Print PDF Scorecard
-                                    </button>
-                                    <div className="flex gap-3 w-full sm:w-auto">
-                                        <button onClick={() => setEditingMatchId(null)} className="flex-1 sm:flex-none px-6 py-3 font-bold text-gray-500 hover:bg-gray-100 rounded-lg">Cancel</button>
-                                        <button onClick={saveScorecard} className="flex-1 sm:flex-none px-6 py-3 bg-green-600 text-white font-black rounded-lg hover:bg-green-700 shadow-md">Save & Auto-Calculate</button>
-                                    </div>
+                                <div className="mt-6 pt-4 border-t flex justify-end gap-3">
+                                    <button onClick={() => setEditingMatchId(null)} className="px-6 py-3 font-bold text-gray-500 hover:bg-gray-100 rounded-lg">Cancel</button>
+                                    <button onClick={saveScorecard} className="px-6 py-3 bg-green-600 text-white font-black rounded-lg hover:bg-green-700 shadow-md">Save & Auto-Calculate</button>
                                 </div>
                             </div>
                         </div>
@@ -1668,15 +1647,6 @@
 
             const [liveMatches, setLiveMatches] = React.useState([]);
             const [trackedMatches, setTrackedMatches] = React.useState([]);
-
-            const [printMatchData, setPrintMatchData] = React.useState(null);
-
-            React.useEffect(() => {
-                window.printMatchScorecard = (matchData) => {
-                    setPrintMatchData(matchData);
-                    setTimeout(() => { window.print(); }, 500); 
-                };
-            }, []);
 
             React.useEffect(() => {
                 const initFirebase = async () => {
@@ -1852,9 +1822,6 @@
 
             return (
                 <div className="min-h-screen flex flex-col relative">
-                    {/* Component is now safely imported and rendered */}
-                    <PrintableScorecardRoot match={printMatchData} roster={roster} />
-
                     <header className="header-gradient text-white pt-10 pb-6 px-6 shadow-md relative overflow-hidden">
                         <div className="absolute -right-10 -bottom-10 opacity-5 transform rotate-45 scale-150 text-white"><Icons.TennisBall /></div>
                         <div className="max-w-4xl mx-auto relative z-10 flex items-center gap-4">
